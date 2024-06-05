@@ -32,12 +32,13 @@ int main( int argc, char **argv){
   N = 1116;
   double side_length_in_meter = 1.0e-3;
   double lambda = 632.8e-9;
-  Signal input( lambda, side_length_in_meter, N, w_ratio, h_ratio, slits);
-  //input.toString();
-  input.picture("input.tiff");
+  Signal input( lambda, side_length_in_meter, N);
   input.illuminate_thermally( 10e-6);
+  input.picture("input.tiff");
+  input.triple_slit_mask( w_ratio, h_ratio, slits);
+  //input.toString();
   std::cout << "illuminate_thermally finished!" << std::endl;
-  input.picture("convolution.tiff");
+  input.picture("tripleslit.tiff");
   double k = 2 * pi / lambda;
   double fA = 1.0e-3/2;
   double c = -1/fA;

@@ -29,61 +29,24 @@ void Signal::illuminate_thermally( double coherence_diameter){
   int knl_size = (int)std::round( N * coherence_diameter / L);
   std::cout << "knl_size = " << knl_size << std::endl;
   Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
-  Eigen::MatrixXcd ran = Eigen::exp((2i * pi * phase).array());
+  value = Eigen::exp((2i * pi * phase).array());
 
   double reslim = coherence_diameter/knl_size;
   auto dom_sq = Eigen::VectorXd::LinSpaced( knl_size, -coherence_diameter/2 + reslim, coherence_diameter/2).array().square().matrix();
   auto ones = Eigen::VectorXd::Constant( knl_size, 1);
   Eigen::MatrixXcd disk = (((dom_sq * ones.transpose()) + (ones * dom_sq.transpose())).array() < pow( coherence_diameter/2,2)).cast<double>();
-  //Eigen::MatrixXcd phase_masked = disk.array() * phase.array();
-
-  //auto ran_masked = diskmask_it( ran, coherence_diameter);
-  //std::cout << "phase of ran = " << ran.array().arg() << std::endl;
-
-  //phase_detect( ran, "light_phase.tiff");
-  std::complex< double> *data = ran.data();
-  int cols = ran.cols();
-  int rows = ran.rows();
-  cv::Mat sgl = cv::Mat_< std::complex< double>>( rows, cols, data);
-  //picture("preconvolution.tiff");
+  std::complex< double> *data = value.data();
+  cv::Mat sgl = cv::Mat_< std::complex< double>>( N, N, data);
   std::complex< double> *knl_data = disk.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
-  //cv::Mat src = sgl.clone();
   cv::filter2D( sgl, sgl, -1, knl);
   std::cout << "cv::filter2D finished!" << std::endl;
-  //cv::transpose( sgl, sgl);
   //cv::filter2D( sgl, sgl, -1, knl, cv::Point( -1, -1), 0, cv::BORDER_CONSTANT);
-  Eigen::Map< Eigen::Matrix< std::complex< double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> light( (std::complex< double> *)sgl.data, N, N);
-  detect( light, "light_intensity.tiff");
-  phase_detect( light, "light_phase.tiff");
-  detect( value, "input_intensity.tiff");
-  value = value.array() * light.array();
-  std::vector<int> params;
-  params.push_back( cv::IMWRITE_TIFF_COMPRESSION);
-  params.push_back( 1);
-  //cv::imwrite( "conv2.tiff", sgl.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
-  cv::Mat A = cv::Mat_< std::complex< double>>( 3, 3);
-  //cv::Mat A( 3, 3, CV_64FC1, cv::Scalar( 0.0, 0.0));
-  for( int i = 0; i < 3; i++){
-    for( int j = 0; j < 3; j++){
-      A.at<std::complex<double>>( i, j) = i + j;
-      std::cout << "A( " << i << ", " << j << ") = " << A.at<std::complex<double>>( i, j) << std::endl;
-    }
-  }
-  std::cout << "A = " << A << std::endl;
-  cv::Mat k( 1, 1, CV_64FC1, cv::Scalar( 1,0, 0,0));
-  cv::filter2D( A, A, CV_64FC1, k);
-  std::cout << "A = " << A << std::endl;
-  //double values[ 9] = { 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  std::complex< double> values[ 9] = { 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  cv::Mat B = cv::Mat_< std::complex< double>>( 3, 3, values);
-  std::cout << "B = " << B << std::endl;
-  for( int i = 0; i < 3; i++){
-    for( int j = 0; j < 3; j++){
-      //std::cout << "B( " << i << ", " << j << ") = " << B.at< double>( i, j) << std::endl;
-      std::cout << "B( " << i << ", " << j << ") = " << B.at< std::complex< double>>( i, j) << std::endl;
-    }
-  }
+  //Eigen::Map< Eigen::Matrix< std::complex< double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> light( (std::complex< double> *)sgl.data, N, N);
+  //detect( light, "light_intensity.tiff");
+  //phase_detect( light, "light_phase.tiff");
+  //detect( value, "input_intensity.tiff");
+  //value = value.array() * light.array();
 }
 
 void Signal::illuminate_uniformly(){
@@ -92,11 +55,8 @@ void Signal::illuminate_uniformly(){
   //value = MatrixXi::Random( N, N).cast<double>();
 }
 
-Signal::Signal( double lambda, double side_length_in_meter, int N, int w_ratio, int h_ratio, int slits):
-  lambda{ lambda}, L{ side_length_in_meter}
-{
-  value = Eigen::MatrixXcd( N, N);
-  illuminate_uniformly();
+void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits){
+  int N = value.cols();
   int hnw = N/w_ratio;
   if( hnw % 2){
     hnw--;
@@ -131,7 +91,16 @@ Signal::Signal( double lambda, double side_length_in_meter, int N, int w_ratio, 
   }
   line += line.reverse().eval();
   auto ones = Eigen::VectorXd::Constant( hnh, 1);
-  value.block( (N-hnh)/2, 0, hnh, N) = ones * line;
+  value.block( (N-hnh)/2, 0, hnh, N) = value.block( (N-hnh)/2, 0, hnh, N).array() * (ones * line).array();
+  value.block( 0, 0, (N-hnh)/2, N).setZero();
+  value.block( (N+hnh)/2, 0, (N-hnh)/2, N).setZero();
+}
+
+Signal::Signal( double lambda, double side_length_in_meter, int N):
+  lambda{ lambda}, L{ side_length_in_meter}
+{
+  value = Eigen::MatrixXcd( N, N);
+  illuminate_uniformly();
 }
 /*
 void Signal__Signal( double lambda, double side_length_in_meter, int N, int w_ratio, int h_ratio, int slits):

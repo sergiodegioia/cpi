@@ -3,7 +3,7 @@
 
 class Signal{
   public:
-    Signal( double lambda, double side_length_in_meter, int N, int w_ratio, int h_ratio, int slits);
+    Signal( double lambda, double side_length_in_meter, int N);
     void detect( Eigen::MatrixXcd detecting, std::string filename);
     void phase_detect( Eigen::MatrixXcd detecting, std::string filename);
     void picture( std::string filename);
@@ -15,6 +15,7 @@ class Signal{
     Eigen::MatrixXcd diskmask_it( Eigen::MatrixXcd to_mask, double radius);
     void propagate( double dist);
     void illuminate_thermally( double coherence_diameter);
+    void triple_slit_mask( int w_ratio, int h_ratio, int slits);
   private:
     void illuminate_uniformly();
     void store( std::string filename, Eigen::MatrixXd data_to_store);
