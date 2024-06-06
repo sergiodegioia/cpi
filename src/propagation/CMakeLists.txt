@@ -8,6 +8,7 @@ list( APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../cmake/module")
 find_package( Qwt REQUIRED)
 find_package( OpenCV REQUIRED)
 add_subdirectory( core)
-target_link_libraries( propagation PRIVATE Qt6::Widgets Qwt::Qwt ${OpenCV_LIBS} core)
+add_subdirectory( utils)
+target_link_libraries( propagation PRIVATE Qt6::Widgets Qwt::Qwt ${OpenCV_LIBS} core utils)
 
 
