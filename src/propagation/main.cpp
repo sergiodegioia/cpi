@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include "QApplication"
 #include "qwt_plot.h"
 #include "qwt_plot_curve.h"
@@ -24,6 +25,67 @@ int draw( QApplication& a, unsigned N, const double* x_p, const double* t_p){
   curve.attach( &plot);
   return a.exec();
 }
+
+inline std::string seq( int counter, int frames){
+  std::cout << "counter = " << counter << std::endl;
+  std::cout << "frames = " << frames << std::endl;
+  if( frames == 1){
+    return "";
+  }
+  double tot_figure = std::ceil( std::log10( frames));
+  if( tot_figure < 1){
+    throw std::runtime_error( "Too few frames: " + std::to_string( frames));
+  }
+  if( tot_figure == 1){
+    return "_" + std::to_string( counter);
+  }
+  if( tot_figure == 2){
+    if( counter < 10){
+      return "_0" + std::to_string( counter);
+    }
+    return std::to_string( counter);
+  }
+  if( tot_figure == 3){
+    if( counter < 10){
+      return "_00" + std::to_string( counter);
+    }
+    if( counter < 100){
+      return "_0" + std::to_string( counter);
+    }
+    return std::to_string( counter);
+  }
+  if( tot_figure == 4){
+    if( counter < 10){
+      return "_000" + std::to_string( counter);
+    }
+    if( counter < 100){
+      return "_00" + std::to_string( counter);
+    }
+    if( counter < 1000){
+      return "_0" + std::to_string( counter);
+    }
+    return std::to_string( counter);
+  }
+  double pads;
+  if( counter == 0){
+    pads = tot_figure - 1;
+  }else{
+    double log_counter = std::log10( counter);
+    double figure = std::ceil( log_counter);
+    if( figure == log_counter){
+      figure++;
+    }
+    pads = tot_figure - figure;
+  }
+  std::cout << "pads = " << pads << std::endl;
+  std::string prefix = "_";
+  for( int i = 0; i < pads; i++){
+  std::cout << "i = " << i << std::endl;
+    prefix += "0";
+  }
+  return prefix + std::to_string( counter);
+}
+
 int main( int argc, char **argv){
   std::cout << "hello, cpi!!" << std::endl;
   QApplication a( argc, argv);
@@ -44,26 +106,20 @@ int main( int argc, char **argv){
   double object_to_lens = cfg.get_double( "common_arm.object_to_lens");
   double lens_to_detectorA = cfg.get_double( "common_arm.lens_to_detectorA");
   double lens_to_detectorB = cfg.get_double( "common_arm.lens_to_detectorB");
+  int frames = cfg.get_int( "frames");
 
-  Signal input( lambda, side_length_in_meter, N);
-  input.illuminate_thermally( speckle_diameter);
-  input.picture("light.tiff");
-  input.triple_slit_mask( w_ratio, h_ratio, slits);
-  //input.toString();
-  std::cout << "illuminate_thermally finished!" << std::endl;
-  input.picture("afterOjbect.tiff");
-  double k = 2 * pi / lambda;
-  input.propagate( object_to_lens);
-  input.picture("propagatedTillLens.tiff");
-  input.mask( radius);
-  input.picture("afterLens.tiff");
-  auto secondBeam = input;
-  input.propagate( -lens_to_detectorA);
-  input.picture("toDetectorA.tiff");
-
-  
-  secondBeam.propagate( - lens_to_detectorB);
-  secondBeam.picture("toDetectorB.tiff");
+  for( int i = 0; i < frames; i++){
+    Signal input( lambda, side_length_in_meter, N);
+    input.illuminate_thermally( speckle_diameter);
+    input.triple_slit_mask( w_ratio, h_ratio, slits);
+    input.propagate( object_to_lens);
+    input.mask( radius);
+    Signal secondBeam = input;
+    input.propagate( -lens_to_detectorA);
+    input.picture("toDetectorA" + seq( i, frames) + ".tiff");
+    secondBeam.propagate( - lens_to_detectorB);
+    secondBeam.picture("toDetectorB" + seq( i, frames) + ".tiff");
+  }
   //return draw( a, N, x_p, t_p);
 }
 

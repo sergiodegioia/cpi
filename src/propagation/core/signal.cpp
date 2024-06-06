@@ -27,7 +27,7 @@ void Signal::toString(){
 void Signal::illuminate_thermally( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
-  std::cout << "knl_size = " << knl_size << std::endl;
+  std::cout << "knl_size in pixels = " << knl_size << std::endl;
   Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   value = Eigen::exp((2i * pi * phase).array());
 
@@ -76,16 +76,11 @@ void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits){
   }
   int offset = nw / 2;
   if( slits % 2){
-    std::cout << "line.block( 0, N/2, 1, nw) size " << line.block( 0, N/2, 1, nw).rows() << ", " << line.block( 0, N/2, 1, nw).cols() << std::endl;
-    std::cout << "Eigen::RowVectorXcd::Constant( nw, 1) size " << Eigen::RowVectorXcd::Constant( nw, 1).rows() << ", " << Eigen::RowVectorXcd::Constant( nw, 1).cols() << std::endl;;
     line.block( 0, N/2, 1, nw/2) = Eigen::RowVectorXcd::Constant( nw/2, 1);
     offset += nw;
     slits--;
   }
-  std::cout << "hnw = " << hnw << std::endl;
   for( int i = 0; i < slits/2; i++){
-    std::cout << "i = " << i << std::endl;
-    std::cout << "N/2 + offset = " << N/2+offset << std::endl;
     line.block( 0, N/2 + offset, 1, nw) = Eigen::RowVectorXcd::Constant( nw, 1);
     offset =+ 2 * nw;
   }
@@ -231,8 +226,8 @@ void Signal::mask( double radius){
 
 void Signal::propagate( double dist){
   int N = value.cols();
-  std::cout << "sizeof( fftw_complex) = " << sizeof( fftw_complex) << std::endl;
-  std::cout << "sizeof( double) = " << sizeof( double) << std::endl;
+  //std::cout << "sizeof( fftw_complex) = " << sizeof( fftw_complex) << std::endl;
+  //std::cout << "sizeof( double) = " << sizeof( double) << std::endl;
   fftw_complex* in = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
   fftw_complex* out = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
   fftw_complex* in2 = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
