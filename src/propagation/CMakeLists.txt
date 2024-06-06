@@ -9,6 +9,8 @@ find_package( Qwt REQUIRED)
 find_package( OpenCV REQUIRED)
 add_subdirectory( core)
 add_subdirectory( utils)
-target_link_libraries( propagation PRIVATE Qt6::Widgets Qwt::Qwt ${OpenCV_LIBS} core utils)
+find_package( OpenMP REQUIRED)
+#target_link_libraries( propagation PRIVATE Qt6::Widgets Qwt::Qwt ${OpenCV_LIBS} core utils)
+target_link_libraries( propagation PRIVATE Qt6::Widgets Qwt::Qwt ${OpenCV_LIBS} core utils OpenMP::OpenMP_CXX)
 
 

@@ -27,7 +27,7 @@ void Signal::toString(){
 void Signal::illuminate_thermally( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
-  std::cout << "knl_size in pixels = " << knl_size << std::endl;
+  //std::cout << "knl_size in pixels = " << knl_size << std::endl;
   Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   value = Eigen::exp((2i * pi * phase).array());
 
@@ -40,7 +40,7 @@ void Signal::illuminate_thermally( double coherence_diameter){
   std::complex< double> *knl_data = disk.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
   cv::filter2D( sgl, sgl, -1, knl);
-  std::cout << "cv::filter2D finished!" << std::endl;
+  //std::cout << "cv::filter2D finished!" << std::endl;
   //cv::filter2D( sgl, sgl, -1, knl, cv::Point( -1, -1), 0, cv::BORDER_CONSTANT);
   //Eigen::Map< Eigen::Matrix< std::complex< double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> light( (std::complex< double> *)sgl.data, N, N);
   //detect( light, "light_intensity.tiff");

@@ -1,3 +1,10 @@
+#ifdef _OPENMP
+  #include <omp.h>
+#else
+  #define omp_get_thread_num() 0
+#endif
+
+#include <iostream>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -27,8 +34,6 @@ int draw( QApplication& a, unsigned N, const double* x_p, const double* t_p){
 }
 
 inline std::string seq( int counter, int frames){
-  std::cout << "counter = " << counter << std::endl;
-  std::cout << "frames = " << frames << std::endl;
   if( frames == 1){
     return "";
   }
@@ -77,10 +82,8 @@ inline std::string seq( int counter, int frames){
     }
     pads = tot_figure - figure;
   }
-  std::cout << "pads = " << pads << std::endl;
   std::string prefix = "_";
   for( int i = 0; i < pads; i++){
-  std::cout << "i = " << i << std::endl;
     prefix += "0";
   }
   return prefix + std::to_string( counter);
@@ -108,7 +111,11 @@ int main( int argc, char **argv){
   double lens_to_detectorB = cfg.get_double( "common_arm.lens_to_detectorB");
   int frames = cfg.get_int( "frames");
 
-  for( int i = 0; i < frames; i++){
+  int i;
+    //#pragma omp parallel for default( none) shared( lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
+  _Pragma( "omp parallel for default( none) shared( lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
+  for( i = 0; i < frames; i++){
+    std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
     Signal input( lambda, side_length_in_meter, N);
     input.illuminate_thermally( speckle_diameter);
     input.triple_slit_mask( w_ratio, h_ratio, slits);
