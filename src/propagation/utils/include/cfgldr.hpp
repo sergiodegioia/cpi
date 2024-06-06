@@ -14,4 +14,10 @@ class ConfigLoader{
     std::map<std::string, std::string> kv;
 };
 
+class ConfigError: public std::runtime_error
+{
+  public:
+    ConfigError( char const* message) throw();
+    ConfigError( const std::string& message) throw();
+};
 

@@ -43,6 +43,9 @@ ConfigLoader::ConfigLoader(): kv{std::map<std::string, std::string>()}{
 double ConfigLoader::get_double( std::string param){
   try{
     return std::stod( get( param));
+  }catch( ConfigError &cfgerr){
+    std::cout << cfgerr.what() << std::endl;
+    throw;
   }catch( std::exception &err){
     std::cout << "[utils/ConfigLoader] Parameter {" << param << "} cannot be parsed as a double. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
     throw;
@@ -52,6 +55,9 @@ double ConfigLoader::get_double( std::string param){
 int ConfigLoader::get_int( std::string param){
   try{
     return std::stoi( get( param));
+  }catch( ConfigError &cfgerr){
+    std::cout << cfgerr.what() << std::endl;
+    throw;
   }catch( std::exception &err){
     std::cout << "[utils/ConfigLoader] Parameter {" << param << "} cannot be parsed as an int. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
     throw;
@@ -61,7 +67,7 @@ int ConfigLoader::get_int( std::string param){
 std::string ConfigLoader::get( std::string param){
   auto iter = kv.find( param);
   if( iter == kv.end()){
-    throw std::invalid_argument( "[utils/ConfigLoader] Parameter {" + param + "} does not exist in the configuration file.");
+    throw ConfigError( "[utils/ConfigLoader] Parameter {" + param + "} does not exist in the configuration file.");
   }else{
     return iter->second;
   }
@@ -111,4 +117,13 @@ bool ConfigLoader::loadconfig(){
   return true;
 }
 
+ConfigError::ConfigError( const std::string& message) throw()
+  : ConfigError( message.c_str())
+{
+}
+
+ConfigError::ConfigError( char const* message) throw()
+  : std::runtime_error( message)
+{
+}
 
