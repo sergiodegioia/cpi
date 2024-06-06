@@ -27,7 +27,7 @@ void Signal::toString(){
 void Signal::illuminate_thermally( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
-  //std::cout << "knl_size in pixels = " << knl_size << std::endl;
+  //#std::cout << "knl_size in pixels = " << knl_size << std::endl;
   Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   value = Eigen::exp((2i * pi * phase).array());
 
@@ -226,6 +226,7 @@ void Signal::mask( double radius){
 
 void Signal::propagate( double dist){
   int N = value.cols();
+  fftw_make_planner_thread_safe();
   //std::cout << "sizeof( fftw_complex) = " << sizeof( fftw_complex) << std::endl;
   //std::cout << "sizeof( double) = " << sizeof( double) << std::endl;
   fftw_complex* in = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
