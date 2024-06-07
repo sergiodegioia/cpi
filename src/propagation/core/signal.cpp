@@ -247,6 +247,12 @@ void Signal::propagate( double dist){
   fftw_execute( p_bw);
   memcpy( value.data(), out2, N * N * sizeof( fftw_complex));
   value = value.transpose().eval();
+  fftw_destroy_plan( p_fw);
+  fftw_destroy_plan( p_bw);
+  fftw_free( in);
+  fftw_free( out);
+  fftw_free( in2);
+  fftw_free( out2);
 }
 
 
