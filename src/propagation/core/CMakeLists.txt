@@ -1,4 +1,4 @@
-cmake_minimum_required( VERSION 3.20)
+cmake_minimum_required( VERSION 3.31)
 project( propagation-core LANGUAGES CXX VERSION 1.0.0)
 add_library( core OBJECT signal.cpp)
 target_include_directories( core PUBLIC include)

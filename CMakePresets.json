@@ -1,0 +1,35 @@
+{
+  "version": 10,
+  "$comment": "to build cpi",
+  "configurePresets":[
+    {
+      "$comment":[
+        "debug ",
+        "build"
+      ],
+      "name": "cpi_debug",
+      "displayName": "CPI BUILD DEBUG",
+      "description": "using Ninja",
+      "generator": "Ninja",
+      "binaryDir": "../build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "$comment":[
+        "release ",
+        "build"
+      ],
+      "name": "cpi_release",
+      "displayName": "CPI BUILD RELEASE",
+      "description": "using Ninja",
+      "generator": "Ninja",
+      "binaryDir": "../build_release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ]
+}
+

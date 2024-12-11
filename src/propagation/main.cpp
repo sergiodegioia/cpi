@@ -118,6 +118,7 @@ int main( int argc, char **argv){
     std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
     Signal input( lambda, side_length_in_meter, N);
     input.illuminate_thermally( speckle_diameter);
+    input.picture("input" + seq( i, frames) + ".tiff");
     input.triple_slit_mask( w_ratio, h_ratio, slits);
     input.propagate( object_to_lens);
     input.mask( radius);
