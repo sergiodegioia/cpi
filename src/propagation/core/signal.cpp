@@ -147,11 +147,11 @@ void Signal__Signal( double lambda, double side_length_in_meter, int N, int w_ra
 }
 */
 
-void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, int bit_depth){
+void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, int max_value, int bit_depth){
   Eigen::MatrixXd intensity = (detecting.array() * detecting.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity, bit_depth);
+  store( filename, intensity, max_value, bit_depth);
 }
 
 double Signal::bucket(){
@@ -159,41 +159,43 @@ double Signal::bucket(){
   return intensity.sum();
 }
 
-void Signal::picture( std::string filename, int bit_depth){
+void Signal::picture( std::string filename, int max_value, int bit_depth){
   Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity, bit_depth);
+  store( filename, intensity, max_value, bit_depth);
 }
 
-void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, int bit_depth){
+void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, int max_value, int bit_depth){
   Eigen::MatrixXd phase = detecting.array().arg();
 
-  store( filename, phase, bit_depth);
+  store( filename, phase, max_value, bit_depth);
 }
 
-void Signal::phase_picture( std::string filename, int bit_depth){
+void Signal::phase_picture( std::string filename, int max_value, int bit_depth){
   Eigen::MatrixXd phase = value.array().arg();
 
-  store( filename, phase, bit_depth);
+  store( filename, phase, max_value, bit_depth);
 }
 
-void Signal::bucket( std::string filename){
+void Signal::bucket( std::string filename, double norm_fact){
   std::ofstream file( filename);
   if(!file){
     std::cerr << "[core/signal] File {" + filename + "} not created." << std::endl;
   }
-  file << std::setprecision( std::numeric_limits<double>::max_digits10) << bucket();
+  //file << std::setprecision( std::numeric_limits<double>::max_digits10) << bucket();
+  file << static_cast<int>(std::round( bucket()/norm_fact));
   file.close();
 }
 
-void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, int bit_depth){
+void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, int max_value, int bit_depth){
   //remap linearly with max intensity to pow( 2, bit_depth)-1
   int maxTiff = 65535;
   if( 64!=bit_depth){
      maxTiff = pow( 2, bit_depth)-1;
   }
-  data_to_store /= data_to_store.maxCoeff() / maxTiff;
+  //data_to_store /= data_to_store.maxCoeff() / maxTiff;
+  data_to_store /= max_value / (maxTiff + .0);
   int C = data_to_store.cols();
   int R = data_to_store.rows();
   auto typeTiff = CV_64FC1;
@@ -297,4 +299,7 @@ void Signal::propagate( double dist){
   fftw_free( out2);
 }
 
+double Signal::max_intensity(){
+    return (value.array() * value.conjugate().array()).matrix().real().maxCoeff();
+}
 

@@ -111,20 +111,29 @@ int main( int argc, char **argv){
   double lens_to_detectorB = cfg.get_double( "common_arm.lens_to_detectorB");
   int frames = cfg.get_int( "frames");
 
+  double intensity_factor = 2.0;
+  double max_intens;
+  {
+    Signal input( lambda, side_length_in_meter, N);
+    input.illuminate_thermally( speckle_diameter);
+    max_intens = input.max_intensity();
+  }
+
   int i;
-    //#pragma omp parallel for default( none) shared( lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
-  _Pragma( "omp parallel for default( none) shared( lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
+    //#pragma omp parallel for default( none) shared( intensity_factor, max_intens, lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
+  _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens, lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
   for( i = 0; i < frames; i++){
     std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
     Signal input( lambda, side_length_in_meter, N);
     input.illuminate_thermally( speckle_diameter);
-    input.picture("reference" + seq( i, frames) + ".tiff", 8);
+    input.picture("reference" + seq( i, frames) + "_8bit.tiff", intensity_factor * max_intens, 8);
+    input.bucket("ref_bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens);
     input.triple_slit_mask( w_ratio, h_ratio, slits);
     //input.picture("bucket" + seq( i, frames) + ".tiff", 8);
     /*
      //START: comment out for CPI/uncomment for GI
      */
-    input.bucket("bucket" + seq( i, frames) + ".txt");
+    input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens);
     /*
      //END: comment out for CPI/uncomment for GI
      */
