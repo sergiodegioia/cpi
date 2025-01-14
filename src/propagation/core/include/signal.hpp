@@ -4,10 +4,12 @@
 class Signal{
   public:
     Signal( double lambda, double side_length_in_meter, int N);
-    void detect( Eigen::MatrixXcd detecting, std::string filename);
-    void phase_detect( Eigen::MatrixXcd detecting, std::string filename);
-    void picture( std::string filename);
-    void phase_picture( std::string filename);
+    void detect( Eigen::MatrixXcd detecting, std::string filename, int bit_depth);
+    void phase_detect( Eigen::MatrixXcd detecting, std::string filename, int bit_depth);
+    void picture( std::string filename, int bit_depth = 64);
+    double bucket();
+    void bucket( std::string filename);
+    void phase_picture( std::string filename, int bit_depth);
     void toString();
     void quadratic_phase_lag_shift( double k, double c);
     void quadratic_phase_lag_shift_fourier( double k, double c);
@@ -18,7 +20,7 @@ class Signal{
     void triple_slit_mask( int w_ratio, int h_ratio, int slits);
   private:
     void illuminate_uniformly();
-    void store( std::string filename, Eigen::MatrixXd data_to_store);
+    void store( std::string filename, Eigen::MatrixXd data_to_store, int bit_depth);
     double lambda;
     double L;
     Eigen::MatrixXcd value;

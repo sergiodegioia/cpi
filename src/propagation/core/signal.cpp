@@ -1,4 +1,7 @@
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <string>
 #include <complex>
 #include <cmath>
@@ -27,7 +30,7 @@ void Signal::toString(){
 void Signal::illuminate_thermally( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
-  //#std::cout << "knl_size in pixels = " << knl_size << std::endl;
+  std::cout << "knl_size in pixels = " << knl_size << std::endl;
   Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   value = Eigen::exp((2i * pi * phase).array());
 
@@ -141,43 +144,76 @@ void Signal__Signal( double lambda, double side_length_in_meter, int N, int w_ra
 }
 */
 
-void Signal::detect( Eigen::MatrixXcd detecting, std::string filename){
+void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, int bit_depth){
   Eigen::MatrixXd intensity = (detecting.array() * detecting.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity);
+  store( filename, intensity, bit_depth);
 }
 
-void Signal::picture( std::string filename){
+double Signal::bucket(){
+  Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).matrix().real();
+  return intensity.sum();
+}
+
+void Signal::picture( std::string filename, int bit_depth){
   Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity);
+  store( filename, intensity, bit_depth);
 }
 
-void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename){
+void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, int bit_depth){
   Eigen::MatrixXd phase = detecting.array().arg();
 
-  store( filename, phase);
+  store( filename, phase, bit_depth);
 }
 
-void Signal::phase_picture( std::string filename){
+void Signal::phase_picture( std::string filename, int bit_depth){
   Eigen::MatrixXd phase = value.array().arg();
 
-  store( filename, phase);
+  store( filename, phase, bit_depth);
 }
 
-void Signal::store( std::string filename, Eigen::MatrixXd data_to_store){
-  //remap linearly with max intensity to 65535
-  data_to_store /= data_to_store.maxCoeff() / 65535; 
-  double *data = data_to_store.data();
+void Signal::bucket( std::string filename){
+  std::ofstream file( filename);
+  if(!file){
+    std::cerr << "[core/signal] File {" + filename + "} not created." << std::endl;
+  }
+  file << std::setprecision( std::numeric_limits<double>::max_digits10) << bucket();
+  file.close();
+}
+
+void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, int bit_depth){
+  //remap linearly with max intensity to pow( 2, bit_depth)-1
+  int maxTiff = 65535;
+  if( 64!=bit_depth){
+     maxTiff = pow( 2, bit_depth)-1;
+  }
+  data_to_store /= data_to_store.maxCoeff() / maxTiff;
   int C = data_to_store.cols();
   int R = data_to_store.rows();
-  cv::Mat m( R, C, CV_64FC1, data);
+  auto typeTiff = CV_64FC1;
   std::vector<int> params;
   params.push_back( cv::IMWRITE_TIFF_COMPRESSION);
   params.push_back( 1);
-  cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+  if( 8 == bit_depth){
+    typeTiff = CV_8UC1;
+    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = data_to_store.cast<uint8_t>();
+    uint8_t *data = converted_data.data();
+    cv::Mat m( R, C, typeTiff, data);
+    cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+  }else if( 16 == bit_depth){
+    typeTiff = CV_16UC1;
+    Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = data_to_store.cast<uint16_t>();
+    uint16_t *data = converted_data.data();
+    cv::Mat m( R, C, typeTiff, data);
+    cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+  }else{
+    double *data = data_to_store.data();
+    cv::Mat m( R, C, typeTiff, data);
+    cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+  }
 }
 
 void Signal::quadratic_phase_lag_shift( double k, double c){
@@ -225,6 +261,9 @@ void Signal::mask( double radius){
 }
 
 void Signal::propagate( double dist){
+  if( 0 == dist){
+    return;
+  }
   int N = value.cols();
   fftw_make_planner_thread_safe();
   //std::cout << "sizeof( fftw_complex) = " << sizeof( fftw_complex) << std::endl;
