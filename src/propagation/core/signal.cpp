@@ -13,6 +13,7 @@
 #include <fftw3.h>
 #include <numbers>
 #include <cstring>
+#include <random>
 
 using namespace std::complex_literals;
 using namespace std::numbers;
@@ -31,7 +32,9 @@ void Signal::illuminate_thermally( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
   std::cout << "knl_size in pixels = " << knl_size << std::endl;
-  Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
+  //Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
+  Eigen::MatrixXd phase( N, N);
+  phase = phase.unaryExpr( [this](double){ return dis( gen);});
   value = Eigen::exp((2i * pi * phase).array());
 
   double reslim = coherence_diameter/knl_size;
@@ -95,7 +98,7 @@ void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits){
 }
 
 Signal::Signal( double lambda, double side_length_in_meter, int N):
-  lambda{ lambda}, L{ side_length_in_meter}
+  lambda{ lambda}, L{ side_length_in_meter}, gen{ std::random_device{}()}, dis{ 0.0, 1.0}
 {
   value = Eigen::MatrixXcd( N, N);
   illuminate_uniformly();

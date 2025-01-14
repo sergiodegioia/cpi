@@ -1,5 +1,6 @@
 #include <string>
 #include <eigen3/Eigen/Dense>
+#include <random>
 
 class Signal{
   public:
@@ -26,5 +27,7 @@ class Signal{
     Eigen::MatrixXcd value;
     Eigen::MatrixXd x, y;
     //class SignalImpl *pSignal;
+    std::mt19937 gen;
+    std::uniform_real_distribution<> dis;
 };
 

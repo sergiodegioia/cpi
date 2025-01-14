@@ -120,7 +120,7 @@ int main( int argc, char **argv){
     input.illuminate_thermally( speckle_diameter);
     input.picture("reference" + seq( i, frames) + ".tiff", 8);
     input.triple_slit_mask( w_ratio, h_ratio, slits);
-    input.picture("bucket" + seq( i, frames) + ".tiff", 8);
+    //input.picture("bucket" + seq( i, frames) + ".tiff", 8);
     /*
      //START: comment out for CPI/uncomment for GI
      */
