@@ -118,8 +118,18 @@ int main( int argc, char **argv){
     std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
     Signal input( lambda, side_length_in_meter, N);
     input.illuminate_thermally( speckle_diameter);
-    input.picture("input" + seq( i, frames) + ".tiff");
+    input.picture("reference" + seq( i, frames) + ".tiff", 8);
     input.triple_slit_mask( w_ratio, h_ratio, slits);
+    input.picture("bucket" + seq( i, frames) + ".tiff", 8);
+    /*
+     //START: comment out for CPI/uncomment for GI
+     */
+    input.bucket("bucket" + seq( i, frames) + ".txt");
+    /*
+     //END: comment out for CPI/uncomment for GI
+     */
+    /*
+     //START: uncomment for CPI/comment out for GI
     input.propagate( object_to_lens);
     input.mask( radius);
     Signal secondBeam = input;
@@ -127,6 +137,8 @@ int main( int argc, char **argv){
     input.picture("toDetectorA" + seq( i, frames) + ".tiff");
     secondBeam.propagate( - lens_to_detectorB);
     secondBeam.picture("toDetectorB" + seq( i, frames) + ".tiff");
+     //END: uncomment for CPI/comment out for GI
+    */
   }
   //return draw( a, N, x_p, t_p);
 }
