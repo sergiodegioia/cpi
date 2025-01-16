@@ -96,7 +96,7 @@ void Signal::illuminate_thermally_flat_knl( double coherence_diameter){
 }
 
 /*
-void Signal::illuminate_thermally( double coherence_diameter){
+void Signal::illuminate_thermally_fft( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
   std::cout << "knl_size in pixels = " << knl_size << std::endl;
@@ -230,7 +230,7 @@ void Signal__Signal( double lambda, double side_length_in_meter, int N, int w_ra
 }
 */
 
-void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, int max_value, int bit_depth){
+void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, int bit_depth){
   Eigen::MatrixXd intensity = (detecting.array() * detecting.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
@@ -242,20 +242,20 @@ double Signal::bucket(){
   return intensity.sum();
 }
 
-void Signal::picture( std::string filename, int max_value, int bit_depth){
+void Signal::picture( std::string filename, double max_value, int bit_depth){
   Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
   store( filename, intensity, max_value, bit_depth);
 }
 
-void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, int max_value, int bit_depth){
+void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, int bit_depth){
   Eigen::MatrixXd phase = detecting.array().arg();
 
   store( filename, phase, max_value, bit_depth);
 }
 
-void Signal::phase_picture( std::string filename, int max_value, int bit_depth){
+void Signal::phase_picture( std::string filename, double max_value, int bit_depth){
   Eigen::MatrixXd phase = value.array().arg();
 
   store( filename, phase, max_value, bit_depth);
@@ -271,13 +271,14 @@ void Signal::bucket( std::string filename, double norm_fact){
   file.close();
 }
 
-void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, int max_value, int bit_depth){
+void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, double max_value, int bit_depth){
   //remap linearly with max intensity to pow( 2, bit_depth)-1
   int maxTiff = 65535;
   if( 64!=bit_depth){
      maxTiff = pow( 2, bit_depth)-1;
   }
   //data_to_store /= data_to_store.maxCoeff() / maxTiff;
+  std::cout << "max value of data to store = " << data_to_store.maxCoeff() << "; norm factor = " << max_value << "; max value Tiff = " << maxTiff << std::endl;
   data_to_store /= max_value / (maxTiff + .0);
   int C = data_to_store.cols();
   int R = data_to_store.rows();
