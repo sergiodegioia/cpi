@@ -13,6 +13,7 @@
 #include <fftw3.h>
 #include <numbers>
 #include <cstring>
+#include <string>
 #include <random>
 
 using namespace std::complex_literals;
@@ -23,12 +24,56 @@ class SignalImpl{
     Eigen::MatrixXd *signal;
 };
 
+std::string matTypeToString(int type) {
+    std::string r;
+
+    uchar depth = type & CV_MAT_DEPTH_MASK;
+    uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+    switch (depth) {
+        case CV_8U:  r = "8U"; break;
+        case CV_8S:  r = "8S"; break;
+        case CV_16U: r = "16U"; break;
+        case CV_16S: r = "16S"; break;
+        case CV_32S: r = "32S"; break;
+        case CV_32F: r = "32F"; break;
+        case CV_64F: r = "64F"; break;
+        default:     r = "User"; break;
+    }
+
+    r += "C";
+    r += std::to_string(chans);
+
+    return r;
+}
 void Signal::toString(){
 //  std::cout << *pSignal->signal << std::endl;
   std::cout << value << std::endl;
 }
 
 void Signal::illuminate_thermally( double coherence_diameter){
+  int N = value.cols();
+  //Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
+  Eigen::MatrixXd phase( N, N);
+  phase = phase.unaryExpr( [this](double){ return dis( gen);});
+  value = Eigen::exp((2i * pi * phase).array());
+
+  double side = 5 * coherence_diameter;
+  int knl_size = (int)std::round( N * side / L);
+  std::cout << "knl_size in pixels = " << knl_size << std::endl;
+  double sigma = coherence_diameter/2;
+  double reslim = side/knl_size;
+  auto gauss1D = Eigen::exp(Eigen::VectorXd::LinSpaced( knl_size, -side/2 + reslim, side/2).array().square()/(-2*sigma*sigma)).matrix();
+  Eigen::MatrixXcd gauss2D = gauss1D * gauss1D.transpose();
+
+  std::complex< double> *data = value.data();
+  cv::Mat sgl = cv::Mat_< std::complex< double>>( N, N, data);
+  std::complex< double> *knl_data = gauss2D.data();
+  cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
+  cv::filter2D( sgl, sgl, -1, knl);
+}
+
+void Signal::illuminate_thermally_flat_knl( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
   std::cout << "knl_size in pixels = " << knl_size << std::endl;
@@ -45,15 +90,53 @@ void Signal::illuminate_thermally( double coherence_diameter){
   cv::Mat sgl = cv::Mat_< std::complex< double>>( N, N, data);
   std::complex< double> *knl_data = disk.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
+  std::cout << "Kernel type: " << matTypeToString( knl.type()) << std::endl;
+  std::cout << "Input type: " << matTypeToString( sgl.type()) << std::endl;
   cv::filter2D( sgl, sgl, -1, knl);
-  //std::cout << "cv::filter2D finished!" << std::endl;
-  //cv::filter2D( sgl, sgl, -1, knl, cv::Point( -1, -1), 0, cv::BORDER_CONSTANT);
-  //Eigen::Map< Eigen::Matrix< std::complex< double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> light( (std::complex< double> *)sgl.data, N, N);
-  //detect( light, "light_intensity.tiff");
-  //phase_detect( light, "light_phase.tiff");
-  //detect( value, "input_intensity.tiff");
-  //value = value.array() * light.array();
 }
+
+/*
+void Signal::illuminate_thermally( double coherence_diameter){
+  int N = value.cols();
+  int knl_size = (int)std::round( N * coherence_diameter / L);
+  std::cout << "knl_size in pixels = " << knl_size << std::endl;
+  //Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
+  Eigen::MatrixXd phase( N, N);
+  phase = phase.unaryExpr( [this](double){ return dis( gen);});
+  value = Eigen::exp((2i * pi * phase).array());
+
+  fftw_make_planner_thread_safe();
+  std::cout << "sizeof( fftw_complex) = " << sizeof( fftw_complex) << std::endl;
+  std::cout << "sizeof( double) = " << sizeof( double) << std::endl;
+  fftw_complex* in = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_complex* out = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_complex* in2 = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_complex* out2 = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_plan p_fw = fftw_plan_dft_2d( N, N, in , out, FFTW_BACKWARD, FFTW_ESTIMATE);
+  fftw_plan p_bw = fftw_plan_dft_2d( N, N, in2, out2, FFTW_FORWARD, FFTW_ESTIMATE);
+  memcpy( in, value.data(), N * N * sizeof( fftw_complex));
+  fftw_execute( p_fw);
+  memcpy( value.data(), out, N * N * sizeof( fftw_complex));
+  value = value.transpose().eval();
+
+  double F = N/L/2;
+  auto freq_sq = Eigen::VectorXd::LinSpaced( N, -F + 1/L, F).array().square().matrix();
+  auto ones = Eigen::VectorXd::Constant( N, 1);
+  Eigen::MatrixXcd knl_ft = Eigen::exp(2*pi*pi*coherence_diameter*coherence_diameter*(freq_sq * ones.transpose() + ones * freq_sq.transpose()).array());
+
+  value = value * knl_ft;
+  memcpy( in2, value.data(), N * N * sizeof( fftw_complex));
+  fftw_execute( p_bw);
+  memcpy( value.data(), out2, N * N * sizeof( fftw_complex));
+  value = value.transpose().eval();
+  fftw_destroy_plan( p_fw);
+  fftw_destroy_plan( p_bw);
+  fftw_free( in);
+  fftw_free( out);
+  fftw_free( in2);
+  fftw_free( out2);
+}
+*/
 
 void Signal::illuminate_uniformly(){
   value.setZero();

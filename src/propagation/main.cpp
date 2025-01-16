@@ -127,9 +127,8 @@ int main( int argc, char **argv){
     Signal input( lambda, side_length_in_meter, N);
     input.illuminate_thermally( speckle_diameter);
     input.picture("reference" + seq( i, frames) + "_8bit.tiff", intensity_factor * max_intens, 8);
-    input.bucket("ref_bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens);
+    //input.bucket("ref_bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens);
     input.triple_slit_mask( w_ratio, h_ratio, slits);
-    //input.picture("bucket" + seq( i, frames) + ".tiff", 8);
     /*
      //START: comment out for CPI/uncomment for GI
      */
