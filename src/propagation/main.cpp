@@ -131,20 +131,20 @@ int main( int argc, char **argv){
     input.triple_slit_mask( w_ratio, h_ratio, slits);
     /*
      //START: comment out for CPI/uncomment for GI
-     */
     input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens);
-    /*
      //END: comment out for CPI/uncomment for GI
      */
     /*
      //START: uncomment for CPI/comment out for GI
+     */
     input.propagate( object_to_lens);
     input.mask( radius);
     Signal secondBeam = input;
     input.propagate( -lens_to_detectorA);
-    input.picture("toDetectorA" + seq( i, frames) + ".tiff");
+    input.picture("toDetectorA" + seq( i, frames) + ".tiff", intensity_factor * max_intens, 8);
     secondBeam.propagate( - lens_to_detectorB);
-    secondBeam.picture("toDetectorB" + seq( i, frames) + ".tiff");
+    secondBeam.picture("toDetectorB" + seq( i, frames) + ".tiff", intensity_factor * max_intens, 8);
+    /*
      //END: uncomment for CPI/comment out for GI
     */
   }
