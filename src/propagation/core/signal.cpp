@@ -230,11 +230,11 @@ void Signal__Signal( double lambda, double side_length_in_meter, int N, int w_ra
 }
 */
 
-void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, int bit_depth){
+void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd intensity = (detecting.array() * detecting.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity, max_value, bit_depth);
+  store( filename, intensity, max_value, centered_crop_factor, bit_depth);
 }
 
 double Signal::bucket(){
@@ -242,23 +242,23 @@ double Signal::bucket(){
   return intensity.sum();
 }
 
-void Signal::picture( std::string filename, double max_value, int bit_depth){
+void Signal::picture( std::string filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity, max_value, bit_depth);
+  store( filename, intensity, max_value, centered_crop_factor, bit_depth);
 }
 
-void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, int bit_depth){
+void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd phase = detecting.array().arg();
 
-  store( filename, phase, max_value, bit_depth);
+  store( filename, phase, max_value, bit_depth, centered_crop_factor);
 }
 
-void Signal::phase_picture( std::string filename, double max_value, int bit_depth){
+void Signal::phase_picture( std::string filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd phase = value.array().arg();
 
-  store( filename, phase, max_value, bit_depth);
+  store( filename, phase, max_value, centered_crop_factor, bit_depth);
 }
 
 void Signal::bucket( std::string filename, double norm_fact){
@@ -271,35 +271,45 @@ void Signal::bucket( std::string filename, double norm_fact){
   file.close();
 }
 
-void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, double max_value, int bit_depth){
+void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, double max_value, double centered_crop_factor, int bit_depth){
+  if( centered_crop_factor > 1){
+    centered_crop_factor = 1;
+  }
+  int C = data_to_store.cols();
+  int R = data_to_store.rows();
+  int i = static_cast<int>(std::round((R - R*centered_crop_factor)/2));
+  int j = static_cast<int>(std::round((C - C*centered_crop_factor)/2));
+  C = C*centered_crop_factor;
+  R = R*centered_crop_factor;
+  auto new_data_to_store = data_to_store.block( i, j, R, C);
   //remap linearly with max intensity to pow( 2, bit_depth)-1
   int maxTiff = 65535;
   if( 64!=bit_depth){
      maxTiff = pow( 2, bit_depth)-1;
   }
   //data_to_store /= data_to_store.maxCoeff() / maxTiff;
-  std::cout << "max value of data to store = " << data_to_store.maxCoeff() << "; norm factor = " << max_value << "; max value Tiff = " << maxTiff << std::endl;
-  data_to_store /= max_value / (maxTiff + .0);
-  int C = data_to_store.cols();
-  int R = data_to_store.rows();
+  //std::cout << "max value of data to store = " << data_to_store.maxCoeff() << "; norm factor = " << max_value << "; max value Tiff = " << maxTiff << std::endl;
+  new_data_to_store /= max_value / (maxTiff + .0);
+  //C = data_to_store.cols();
+  //R = data_to_store.rows();
   auto typeTiff = CV_64FC1;
   std::vector<int> params;
   params.push_back( cv::IMWRITE_TIFF_COMPRESSION);
   params.push_back( 1);
   if( 8 == bit_depth){
     typeTiff = CV_8UC1;
-    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = data_to_store.cast<uint8_t>();
+    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.cast<uint8_t>();
     uint8_t *data = converted_data.data();
     cv::Mat m( R, C, typeTiff, data);
     cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }else if( 16 == bit_depth){
     typeTiff = CV_16UC1;
-    Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = data_to_store.cast<uint16_t>();
+    Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.cast<uint16_t>();
     uint16_t *data = converted_data.data();
     cv::Mat m( R, C, typeTiff, data);
     cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }else{
-    double *data = data_to_store.data();
+    double *data = new_data_to_store.data();
     cv::Mat m( R, C, typeTiff, data);
     cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }

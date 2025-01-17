@@ -5,12 +5,12 @@
 class Signal{
   public:
     Signal( double lambda, double side_length_in_meter, int N);
-    void detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, int bit_depth);
-    void phase_detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, int bit_depth);
-    void picture( std::string filename, double max_value, int bit_depth = 64);
+    void detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, double centered_crop_factor, int bit_depth);
+    void phase_detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, double centered_crop_factor, int bit_depth);
+    void picture( std::string filename, double max_value, double centered_crop_factor, int bit_depth = 64);
     double bucket();
     void bucket( std::string filename, double norm_fact);
-    void phase_picture( std::string filename, double max_value, int bit_depth);
+    void phase_picture( std::string filename, double max_value, double centered_crop_factor, int bit_depth);
     void toString();
     void quadratic_phase_lag_shift( double k, double c);
     void quadratic_phase_lag_shift_fourier( double k, double c);
@@ -24,7 +24,7 @@ class Signal{
     double max_intensity();
   private:
     void illuminate_uniformly();
-    void store( std::string filename, Eigen::MatrixXd data_to_store, double max_value, int bit_depth);
+    void store( std::string filename, Eigen::MatrixXd data_to_store, double max_value, double centered_crop_factor, int bit_depth);
     double lambda;
     double L;
     Eigen::MatrixXcd value;

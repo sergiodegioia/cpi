@@ -124,21 +124,21 @@ int main( int argc, char **argv){
     input.propagate( object_to_lens);
     max_intens_at_lens = input.max_intensity();
     input.mask( radius);
-    Signal secondBeam = input;
-    input.propagate( -lens_to_detectorA);
+    //Signal secondBeam = input;
+    input.propagate( -lens_to_detectorB);
     max_intens_at_A = input.max_intensity();
-    secondBeam.propagate( - lens_to_detectorB);
-    max_intens_at_B = secondBeam.max_intensity();
+    //secondBeam.propagate( - lens_to_detectorB);
+    //max_intens_at_B = secondBeam.max_intensity();
   }
 
   int i;
-    //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
-  _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
+    //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
+  _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
   for( i = 0; i < frames; i++){
     std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
     Signal input( lambda, side_length_in_meter, N);
     input.illuminate_thermally( speckle_diameter);
-    input.picture("reference" + seq( i, frames) + "_8bit.tiff", intensity_factor * max_intens_at_source, 8);
+    //input.picture("reference" + seq( i, frames) + "_8bit.tiff", intensity_factor * max_intens_at_source, 1.0, 8);
     //input.bucket("ref_bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens_at_source);
     input.triple_slit_mask( w_ratio, h_ratio, slits);
     /*
@@ -150,13 +150,13 @@ int main( int argc, char **argv){
      //START: uncomment for CPI/comment out for GI
      */
     input.propagate( object_to_lens);
-    input.picture("to_lens" + seq( i, frames) + "_8bit.tiff", intensity_factor * max_intens_at_lens, 8);
     input.mask( radius);
-    Signal secondBeam = input;
-    input.propagate( -lens_to_detectorA);
-    input.picture("toDetectorA" + seq( i, frames) + ".tiff", intensity_factor * max_intens_at_A, 8);
-    secondBeam.propagate( - lens_to_detectorB);
-    secondBeam.picture("toDetectorB" + seq( i, frames) + ".tiff", intensity_factor * max_intens_at_B, 8);
+    input.picture("toDetectorB" + seq( i, frames) + ".tiff", intensity_factor * max_intens_at_lens, side_length_in_meter/fA, 16);
+    //Signal secondBeam = input;
+    input.propagate( -lens_to_detectorB);
+    input.picture("toDetectorA" + seq( i, frames) + ".tiff", intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), 16);
+    //secondBeam.propagate( - lens_to_detectorB);
+    //secondBeam.picture("toDetectorB" + seq( i, frames) + ".tiff", intensity_factor * max_intens_at_B, 1, 8);
     /*
      //END: uncomment for CPI/comment out for GI
     */
