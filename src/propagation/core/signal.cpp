@@ -51,7 +51,7 @@ void Signal::toString(){
   std::cout << value << std::endl;
 }
 
-void Signal::illuminate_thermally( double coherence_diameter){
+int Signal::illuminate_thermally( double coherence_diameter){
   int N = value.cols();
   //Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   Eigen::MatrixXd phase( N, N);
@@ -60,7 +60,6 @@ void Signal::illuminate_thermally( double coherence_diameter){
 
   double side = 5 * coherence_diameter;
   int knl_size = (int)std::round( N * side / L);
-  std::cout << "knl_size in pixels = " << knl_size << std::endl;
   double sigma = coherence_diameter/2;
   double reslim = side/knl_size;
   auto gauss1D = Eigen::exp(Eigen::VectorXd::LinSpaced( knl_size, -side/2 + reslim, side/2).array().square()/(-2*sigma*sigma)).matrix();
@@ -71,6 +70,7 @@ void Signal::illuminate_thermally( double coherence_diameter){
   std::complex< double> *knl_data = gauss2D.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
   cv::filter2D( sgl, sgl, -1, knl);
+  return knl_size;
 }
 
 void Signal::illuminate_thermally_flat_knl( double coherence_diameter){

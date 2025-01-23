@@ -40,6 +40,22 @@ ConfigLoader::ConfigLoader(): kv{std::map<std::string, std::string>()}{
   loadconfig();
 }
 
+std::string ConfigLoader::get_experiment(){
+  try{
+    std::string experiment = get( "experiment");
+    if( experiment != "CPI" && experiment != "GI"){
+      throw ConfigError( "[utils/ConfigLoader] Parameter {experiment} is {" + experiment + "} and hence is neither CPI nor GI, the only legal values.");
+    }
+    return experiment;
+  }catch( ConfigError &cfgerr){
+    std::cout << cfgerr.what() << std::endl;
+    throw;
+  }catch( std::exception &err){
+    std::cout << "[utils/ConfigLoader] Parameter {experiment} cannot be parsed as a double. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
+    throw;
+  }
+}
+
 double ConfigLoader::get_double( std::string param){
   try{
     return std::stod( get( param));

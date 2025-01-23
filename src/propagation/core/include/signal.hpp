@@ -17,7 +17,7 @@ class Signal{
     void mask( double radius);
     Eigen::MatrixXcd diskmask_it( Eigen::MatrixXcd to_mask, double radius);
     void propagate( double dist);
-    void illuminate_thermally( double coherence_diameter);
+    int illuminate_thermally( double coherence_diameter);
     void illuminate_thermally_flat_knl( double coherence_diameter);
     //void illuminate_thermally_fft( double coherence_diameter);
     void triple_slit_mask( int w_ratio, int h_ratio, int slits);

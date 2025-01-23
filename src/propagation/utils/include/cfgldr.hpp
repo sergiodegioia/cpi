@@ -8,6 +8,7 @@ class ConfigLoader{
     std::string get( std::string param);
     int get_int( std::string param);
     double get_double( std::string param);
+    std::string get_experiment();
     friend auto operator<<( std::ostream& os, ConfigLoader const &cfg) -> std::ostream&;
   private:
     bool loadconfig();
