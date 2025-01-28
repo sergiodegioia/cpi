@@ -139,12 +139,12 @@ void Signal::illuminate_thermally_fft( double coherence_diameter){
 */
 
 void Signal::illuminate_uniformly(){
-  value.setZero();
+  value.setOnes();
   int N = value.cols();
   //value = MatrixXi::Random( N, N).cast<double>();
 }
 
-void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits){
+void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits, double w_offset_ratio){
   int N = value.cols();
   int hnw = N/w_ratio;
   if( hnw % 2){
@@ -154,6 +154,8 @@ void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits){
   if( hnh % 2){
     hnh--;
   }
+  int onw = static_cast<int>( hnw * w_offset_ratio);
+  std::cout << "onw = " << onw << std::endl;
   Eigen::RowVectorXcd line( N);
   line.setZero();
   int nw = hnw / slits;
@@ -174,6 +176,19 @@ void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits){
     offset =+ 2 * nw;
   }
   line += line.reverse().eval();
+  // apply the vertical offset
+  if( 0 != onw){
+    Eigen::RowVectorXcd temp( N);
+    temp.setZero();
+    if( onw > 0){
+      temp.block( 0, onw, 1, N-onw) = line.block( 0, 0, 1, N-onw);
+    }else if( onw < 0){
+      onw = -onw;
+      temp.block( 0, 0, 1, N-onw) = line.block( 0, onw, 1, N-onw);
+    }
+    line = temp;
+  }
+  //
   auto ones = Eigen::VectorXd::Constant( hnh, 1);
   value.block( (N-hnh)/2, 0, hnh, N) = value.block( (N-hnh)/2, 0, hnh, N).array() * (ones * line).array();
   value.block( 0, 0, (N-hnh)/2, N).setZero();

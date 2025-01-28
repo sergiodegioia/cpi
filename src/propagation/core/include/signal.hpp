@@ -20,7 +20,7 @@ class Signal{
     int illuminate_thermally( double coherence_diameter);
     void illuminate_thermally_flat_knl( double coherence_diameter);
     //void illuminate_thermally_fft( double coherence_diameter);
-    void triple_slit_mask( int w_ratio, int h_ratio, int slits);
+    void triple_slit_mask( int w_ratio, int h_ratio, int slits, double w_offset_ratio);
     double max_intensity();
   private:
     void illuminate_uniformly();

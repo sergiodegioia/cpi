@@ -100,9 +100,10 @@ int main( int argc, char **argv){
   constexpr std::string_view CPI = "CPI";
   constexpr std::string_view GI = "GI";
   std::string experiment = cfg.get_experiment();
-  int slits = cfg.get_int( "slits");
-  int w_ratio = cfg.get_int( "w_ratio");
-  int h_ratio = cfg.get_int( "h_ratio");
+  int slits = cfg.get_int( "object.slits");
+  int w_ratio = cfg.get_int( "object.w_ratio");
+  int h_ratio = cfg.get_int( "object.h_ratio");
+  double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
   unsigned N = cfg.get_int( "N");
   double side_length_in_meter = cfg.get_double( "side_length_in_meter");
   double lambda = cfg.get_double( "lambda");
@@ -125,7 +126,7 @@ int main( int argc, char **argv){
       int knl_size = input.illuminate_thermally( speckle_diameter);
       std::cout << "knl_size in pixels = " << knl_size << std::endl;
       max_intens_at_source = input.max_intensity();
-      input.triple_slit_mask( w_ratio, h_ratio, slits);
+      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       input.propagate( object_to_lens);
       max_intens_at_lens = input.max_intensity();
       input.mask( radius);
@@ -143,13 +144,13 @@ int main( int argc, char **argv){
 
   int i;
   if( experiment == CPI){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
-      input.illuminate_thermally( speckle_diameter);
-      input.triple_slit_mask( w_ratio, h_ratio, slits);
+      //input.illuminate_thermally( speckle_diameter);
+      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       input.propagate( object_to_lens);
       input.mask( radius);
       //input.picture("toDetectorB" + seq( i, frames) + ".tiff", intensity_factor * max_intens_at_lens, side_length_in_meter/fA, 16);
@@ -164,14 +165,14 @@ int main( int argc, char **argv){
       */
     }
   }else{
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
       input.illuminate_thermally( speckle_diameter);
       input.picture("reference" + seq( i, frames) + "_8bit.tiff", intensity_factor * max_intens_at_source, 1.0, 8);
-      input.triple_slit_mask( w_ratio, h_ratio, slits);
+      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens_at_source);
     }
   }

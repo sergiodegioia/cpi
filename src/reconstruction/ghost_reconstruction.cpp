@@ -29,7 +29,7 @@ void store( Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>& data_to_store){
     typeTiff = CV_64FC1;
     maxTiff = 65535;
   }
-  data_to_store /= max_value / (maxTiff + .0);
+  //data_to_store /= max_value / (maxTiff + .0);
   uint8_t *data = data_to_store.data();
   int C = data_to_store.cols();
   int R = data_to_store.rows();
