@@ -46,6 +46,16 @@ std::string matTypeToString(int type) {
 
     return r;
 }
+void Signal::toTextFile( std::filesystem::path filename){
+  std::ofstream file( filename);
+  if(!file){
+    std::cerr << "[core/signal] File {" + filename.string() + "} not created." << std::endl;
+  }
+  //file << std::setprecision( std::numeric_limits<double>::max_digits10) << bucket();
+  file << value;
+  file.close();
+}
+
 void Signal::toString(){
 //  std::cout << *pSignal->signal << std::endl;
   std::cout << value << std::endl;
@@ -140,7 +150,7 @@ void Signal::illuminate_thermally_fft( double coherence_diameter){
 
 void Signal::illuminate_uniformly(){
   value.setOnes();
-  int N = value.cols();
+  //int N = value.cols();
   //value = MatrixXi::Random( N, N).cast<double>();
 }
 
@@ -155,7 +165,6 @@ void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits, double w_off
     hnh--;
   }
   int onw = static_cast<int>( hnw * w_offset_ratio);
-  std::cout << "onw = " << onw << std::endl;
   Eigen::RowVectorXcd line( N);
   line.setZero();
   int nw = hnw / slits;
@@ -245,11 +254,16 @@ void Signal__Signal( double lambda, double side_length_in_meter, int N, int w_ra
 }
 */
 
-void Signal::detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, double centered_crop_factor, int bit_depth){
+void Signal::detect( Eigen::MatrixXcd detecting, std::filesystem::path filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd intensity = (detecting.array() * detecting.conjugate().array()).matrix().real();
+  Eigen::MatrixXd result = intensity.array().pow( 1./1);
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
-  store( filename, intensity, max_value, centered_crop_factor, bit_depth);
+  max_value = (result.array() * result.conjugate().array()).matrix().real().maxCoeff();
+  double min_value = (result.array() * result.conjugate().array()).matrix().real().minCoeff();
+  std::cout << "fft max intensity = " << max_value << std::endl;
+  std::cout << "fft min intensity = " << min_value << std::endl;
+  store( filename, result, max_value, centered_crop_factor, bit_depth);
 }
 
 double Signal::bucket(){
@@ -257,36 +271,36 @@ double Signal::bucket(){
   return intensity.sum();
 }
 
-void Signal::picture( std::string filename, double max_value, double centered_crop_factor, int bit_depth){
+void Signal::picture( std::filesystem::path filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).matrix().real();
   //Eigen::MatrixXd intensity = (value.array() * value.conjugate().array()).sqrt().matrix().real();
 
   store( filename, intensity, max_value, centered_crop_factor, bit_depth);
 }
 
-void Signal::phase_detect( Eigen::MatrixXcd detecting, std::string filename, double max_value, double centered_crop_factor, int bit_depth){
+void Signal::phase_detect( Eigen::MatrixXcd detecting, std::filesystem::path filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd phase = detecting.array().arg();
 
   store( filename, phase, max_value, bit_depth, centered_crop_factor);
 }
 
-void Signal::phase_picture( std::string filename, double max_value, double centered_crop_factor, int bit_depth){
+void Signal::phase_picture( std::filesystem::path filename, double max_value, double centered_crop_factor, int bit_depth){
   Eigen::MatrixXd phase = value.array().arg();
 
   store( filename, phase, max_value, centered_crop_factor, bit_depth);
 }
 
-void Signal::bucket( std::string filename, double norm_fact){
+void Signal::bucket( std::filesystem::path filename, double norm_fact){
   std::ofstream file( filename);
   if(!file){
-    std::cerr << "[core/signal] File {" + filename + "} not created." << std::endl;
+    std::cerr << "[core/signal] File {" + filename.string() + "} not created." << std::endl;
   }
   //file << std::setprecision( std::numeric_limits<double>::max_digits10) << bucket();
   file << static_cast<int>(std::round( bucket()/norm_fact));
   file.close();
 }
 
-void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, double max_value, double centered_crop_factor, int bit_depth){
+void Signal::store( std::filesystem::path filename, Eigen::MatrixXd data_to_store, double max_value, double centered_crop_factor, int bit_depth){
   if( centered_crop_factor > 1){
     centered_crop_factor = 1;
   }
@@ -304,6 +318,11 @@ void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, double 
   }
   //data_to_store /= data_to_store.maxCoeff() / maxTiff;
   //std::cout << "max value of data to store = " << data_to_store.maxCoeff() << "; norm factor = " << max_value << "; max value Tiff = " << maxTiff << std::endl;
+  //double min_store = new_data_to_store.minCoeff();
+  //double max_store = new_data_to_store.maxCoeff();
+  //std::cout << "max_value = " << max_value << std::endl;
+  //std::cout << "min_store = " << min_store << std::endl;
+  //std::cout << "max_store = " << max_store << std::endl;
   new_data_to_store /= max_value / (maxTiff + .0);
   //C = data_to_store.cols();
   //R = data_to_store.rows();
@@ -316,17 +335,17 @@ void Signal::store( std::string filename, Eigen::MatrixXd data_to_store, double 
     Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.cast<uint8_t>();
     uint8_t *data = converted_data.data();
     cv::Mat m( R, C, typeTiff, data);
-    cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+    cv::imwrite( filename.string(), m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }else if( 16 == bit_depth){
     typeTiff = CV_16UC1;
     Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.cast<uint16_t>();
     uint16_t *data = converted_data.data();
     cv::Mat m( R, C, typeTiff, data);
-    cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+    cv::imwrite( filename.string(), m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }else{
     double *data = new_data_to_store.data();
     cv::Mat m( R, C, typeTiff, data);
-    cv::imwrite( filename, m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
+    cv::imwrite( filename.string(), m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }
 }
 
@@ -344,8 +363,17 @@ void Signal::quadratic_phase_lag_shift_fourier( double k, double c){
   double f0 = 1/L;
   double reslim = f0;
   double f_Nyq = N * f0 / 2.0;
-  auto dom1 = Eigen::VectorXd::LinSpaced( N/2+1, 0, N/2 * f0);
-  auto dom2 = Eigen::VectorXd::LinSpaced( N/2-1, ((N/2+1)-N) * f0, ((N - 1) - N) * f0);
+  double dc = f0/2;
+  //auto dom1 = Eigen::VectorXd::LinSpaced( N/2+1, dc, N/2 * f0 + dc);
+  //auto dom2 = Eigen::VectorXd::LinSpaced( N/2-1 + (N%2?1:0), ((N/2+1)-N) * f0 + dc, ((N - 1) - N) * f0 + dc);
+  Eigen::VectorXd dom1, dom2;
+  if( N%2){ // if N is odd?
+    dom1 = Eigen::VectorXd::LinSpaced( (N-1)/2+1, dc, (N-1)/2 * f0 + dc);
+    dom2 = Eigen::VectorXd::LinSpaced( (N-1)/2, ((N-1)/2) * f0 + dc, -f0 + dc);
+  }else{ // if N is ven
+    dom1 = Eigen::VectorXd::LinSpaced( N/2, dc, (N/2 - 1) * f0 + dc);
+    dom2 = Eigen::VectorXd::LinSpaced( N/2, -N/2 * f0 + dc, -f0 + dc);
+  }
   Eigen::VectorXd dom( dom1.size() + dom2.size());
   dom << dom1, dom2;
   //std::cout << dom << std::endl;
@@ -374,6 +402,38 @@ void Signal::mask( double radius){
   //cout << value.real() << std::endl;
 }
 
+Eigen::MatrixXcd Signal::fft(){
+  int N = value.cols();
+  fftw_make_planner_thread_safe();
+  //std::cout << "sizeof( fftw_complex) = " << sizeof( fftw_complex) << std::endl;
+  //std::cout << "sizeof( double) = " << sizeof( double) << std::endl;
+  fftw_complex* in = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_complex* out = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_complex* in2 = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_complex* out2 = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
+  fftw_plan p_fw = fftw_plan_dft_2d( N, N, in , out, FFTW_BACKWARD, FFTW_ESTIMATE);
+  fftw_plan p_bw = fftw_plan_dft_2d( N, N, in2, out2, FFTW_FORWARD, FFTW_ESTIMATE);
+  auto fft_data = value.transpose().eval();
+  memcpy( in, fft_data.data(), N * N * sizeof( fftw_complex));
+  fftw_execute( p_fw);
+  memcpy( fft_data.data(), out, N * N * sizeof( fftw_complex));
+  fftw_destroy_plan( p_fw);
+  fftw_free( in);
+  fftw_free( out);
+  fft_data /= N;
+  /*
+  memcpy( in2, fft_data.data(), N * N * sizeof( fftw_complex));
+  fftw_execute( p_bw);
+  memcpy( fft_data.data(), out2, N * N * sizeof( fftw_complex));
+  fft_data = fft_data.transpose().eval();
+  fft_data /= N;
+  fftw_destroy_plan( p_bw);
+  fftw_free( in2);
+  fftw_free( out2);
+  */
+  return fft_data;
+}
+
 void Signal::propagate( double dist){
   if( 0 == dist){
     return;
@@ -388,15 +448,15 @@ void Signal::propagate( double dist){
   fftw_complex* out2 = (fftw_complex*)fftw_malloc( N * N * sizeof( fftw_complex));
   fftw_plan p_fw = fftw_plan_dft_2d( N, N, in , out, FFTW_BACKWARD, FFTW_ESTIMATE);
   fftw_plan p_bw = fftw_plan_dft_2d( N, N, in2, out2, FFTW_FORWARD, FFTW_ESTIMATE);
-  memcpy( in, value.data(), N * N * sizeof( fftw_complex));
+  memcpy( in, value.transpose().data(), N * N * sizeof( fftw_complex));
   fftw_execute( p_fw);
   memcpy( value.data(), out, N * N * sizeof( fftw_complex));
-  //Eigen::Map< Eigen::Matrix< complex< double>, N, N, Eigen::RowMajor>> value_ft( reinterpret_cast<complex<double>*>(*out));
   value = value.transpose().eval();
+  //Eigen::Map< Eigen::Matrix< complex< double>, N, N, Eigen::RowMajor>> value_ft( reinterpret_cast<complex<double>*>(*out));
   double k = 2 * pi / lambda;
   double c = -lambda*lambda * dist;
   quadratic_phase_lag_shift_fourier( k, c);
-  memcpy( in2, value.data(), N * N * sizeof( fftw_complex));
+  memcpy( in2, value.transpose().data(), N * N * sizeof( fftw_complex));
   fftw_execute( p_bw);
   memcpy( value.data(), out2, N * N * sizeof( fftw_complex));
   value = value.transpose().eval();
@@ -406,6 +466,10 @@ void Signal::propagate( double dist){
   fftw_free( out);
   fftw_free( in2);
   fftw_free( out2);
+}
+
+double Signal::max_intensity( Eigen::MatrixXcd data){
+    return (data.array() * data.conjugate().array()).matrix().real().maxCoeff();
 }
 
 double Signal::max_intensity(){

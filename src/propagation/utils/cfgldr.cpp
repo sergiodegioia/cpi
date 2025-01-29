@@ -5,6 +5,7 @@
 #include <numbers>
 #include <cmath>
 #include <map>
+#include <filesystem>
 
 #include <algorithm> 
 #include <cctype>
@@ -40,10 +41,26 @@ ConfigLoader::ConfigLoader(): kv{std::map<std::string, std::string>()}{
   loadconfig();
 }
 
+std::string ConfigLoader::get_pixel_format(){
+  try{
+    std::string pixel_format = get( "tiff.pixel_format");
+    if( pixel_format != "8U" && pixel_format != "16U" && pixel_format != "64F"){
+      throw ConfigError( "[utils/ConfigLoader] Parameter {pixel_format} is {" + pixel_format + "} and hence is neither 8U nor 16U nor 64F, the only legal values.");
+    }
+    return pixel_format;
+  }catch( ConfigError &cfgerr){
+    std::cout << cfgerr.what() << std::endl;
+    throw;
+  }catch( std::exception &err){
+    std::cout << "[utils/ConfigLoader] Parameter {pixel_format} cannot be parsed as a double. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
+    throw;
+  }
+}
+
 std::string ConfigLoader::get_experiment(){
   try{
     std::string experiment = get( "experiment");
-    if( experiment != "CPI" && experiment != "GI"){
+    if( experiment != "CPI" && experiment != "GI" && experiment != "NO_OP"){
       throw ConfigError( "[utils/ConfigLoader] Parameter {experiment} is {" + experiment + "} and hence is neither CPI nor GI, the only legal values.");
     }
     return experiment;
@@ -64,6 +81,21 @@ double ConfigLoader::get_double( std::string param){
     throw;
   }catch( std::exception &err){
     std::cout << "[utils/ConfigLoader] Parameter {" << param << "} cannot be parsed as a double. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
+    throw;
+  }
+}
+
+std::filesystem::path ConfigLoader::get_pathname( std::string param){
+  try{
+    auto path = std::filesystem::path( get( param));
+    try{
+      std::filesystem::directory_iterator it(path);
+    }catch(const std::filesystem::filesystem_error&) {
+      throw ConfigError( "[utils/ConfigLoader] Parameter {"  + param +  "} is {" + path.string() + "} and hence is not a legal pathname.");
+    }
+    return path;
+  }catch( std::exception &err){
+    std::cout << "[utils/ConfigLoader] Parameter {" << param << "} cannot be parsed as a filename. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
     throw;
   }
 }
