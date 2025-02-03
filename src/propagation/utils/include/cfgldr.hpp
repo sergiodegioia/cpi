@@ -8,6 +8,7 @@ class ConfigLoader{
     ConfigLoader();
     std::string get( std::string param);
     std::filesystem::path get_pathname( std::string param);
+    bool get_bool( std::string param);
     int get_int( std::string param);
     double get_double( std::string param);
     std::string get_experiment();

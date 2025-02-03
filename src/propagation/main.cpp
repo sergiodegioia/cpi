@@ -100,6 +100,8 @@ int main( int argc, char **argv){
   std::cout << cfg << std::endl;
   constexpr std::string_view CPI = "CPI";
   constexpr std::string_view GI = "GI";
+  constexpr std::string_view NO_OP = "NO_OP";
+  constexpr std::string_view OBJ = "OBJ";
   std::filesystem::path pathname = cfg.get_pathname( "storage.root_dir");
   std::string experiment = cfg.get_experiment();
   int pixel_format = cfg.get_int("tiff.pixel_format");
@@ -159,7 +161,7 @@ int main( int argc, char **argv){
       Signal second = input;
       input.propagate( object_to_lens);
       max_intens_at_lens = input.max_intensity();
-      second.propagate( object_to_lens);
+      second.propagate( -object_to_lens);
       max_intens_at_lens = second.max_intensity();
     }
   }
@@ -183,7 +185,7 @@ int main( int argc, char **argv){
       input.propagate( -lens_to_detectorB);
       input.picture( pathname / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), pixel_format);
       secondBeam.propagate( - lens_to_detectorA);
-      secondBeam.picture( pathname / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
+      secondBeam.picture( pathname / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, 1.5*side_length_in_meter/fA, pixel_format);
       //secondBeam.picture( pathname / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_B, 1, pixel_format);
       /*
        //END: uncomment for CPI/comment out for GI
@@ -200,7 +202,7 @@ int main( int argc, char **argv){
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens_at_source);
     }
-  }else{
+  }else if( experiment == NO_OP){
       //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)
     _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
@@ -213,6 +215,12 @@ int main( int argc, char **argv){
       input.picture( pathname / ("forward" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
       second.picture( pathname / ("backward" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
     }
+  }else if( experiment == OBJ){
+      Signal input( lambda, side_length_in_meter, N);
+      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      input.picture( pathname / ("object.tiff"), 1, 1);
+  }else{
+    std::cout << "No operation chosen" << std::endl;
   }
 
   //return draw( a, N, x_p, t_p);

@@ -60,7 +60,7 @@ std::string ConfigLoader::get_pixel_format(){
 std::string ConfigLoader::get_experiment(){
   try{
     std::string experiment = get( "experiment");
-    if( experiment != "CPI" && experiment != "GI" && experiment != "NO_OP"){
+    if( experiment != "CPI" && experiment != "GI" && experiment != "OBJ" && experiment != "NO_OP"){
       throw ConfigError( "[utils/ConfigLoader] Parameter {experiment} is {" + experiment + "} and hence is neither CPI nor GI, the only legal values.");
     }
     return experiment;
@@ -86,18 +86,39 @@ double ConfigLoader::get_double( std::string param){
 }
 
 std::filesystem::path ConfigLoader::get_pathname( std::string param){
+  auto value = get( param);
   try{
-    auto path = std::filesystem::path( get( param));
-    try{
-      std::filesystem::directory_iterator it(path);
-    }catch(const std::filesystem::filesystem_error&) {
-      throw ConfigError( "[utils/ConfigLoader] Parameter {"  + param +  "} is {" + path.string() + "} and hence is not a legal pathname.");
+    auto path = std::filesystem::path( value);
+    if( get_bool( "storage.overwrite")){
+      std::filesystem::create_directory( path);
+    }else{
+      if( !std::filesystem::create_directory( path)){
+        throw ConfigError( "[utils/ConfigLoader] Parameter {"  + param +  "} is {" + value + "} which is an existing path. It cannot be used in non-overwrite mode.");
+      }
     }
     return path;
   }catch( std::exception &err){
-    std::cout << "[utils/ConfigLoader] Parameter {" << param << "} cannot be parsed as a filename. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
+    std::cout << err.what() << std::endl;
     throw;
   }
+}
+
+bool ConfigLoader::get_bool(std::string param) {
+    try {
+        std::string value = get( param);
+        std::transform(value.begin(), value.end(), value.begin(), ::tolower); // Convert to lowercase for case-insensitivity
+        
+        if ( value == "y" || value == "true" || value == "1") {
+            return true;
+        } else if ( value == "n" || value == "false" || value == "0") {
+            return false;
+        } else {
+            throw ConfigError( "[utils/ConfigLoader] Parameter {" + param + "} is {" + value + "} and hence is neither Y nor N, the only legal values. Check it in the configuration file for the wrong format and fix it. ");
+        }
+    } catch (ConfigError &cfgerr) {
+        std::cout << cfgerr.what() << std::endl;
+        throw;
+    }
 }
 
 int ConfigLoader::get_int( std::string param){
