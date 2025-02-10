@@ -148,7 +148,7 @@ int main( int argc, char **argv){
       max_intens_at_A = input.max_intensity();
       //secondBeam.propagate( - lens_to_detectorB);
       //max_intens_at_B = secondBeam.max_intensity();
-    }else if( experiment == CPI){
+    }else if( experiment == GI){
       Signal input( lambda, side_length_in_meter, N);
       input.illuminate_thermally( speckle_diameter);
       max_intens_at_source = input.max_intensity();
