@@ -102,6 +102,7 @@ int main( int argc, char **argv){
   constexpr std::string_view GI = "GI";
   constexpr std::string_view NO_OP = "NO_OP";
   constexpr std::string_view OBJ = "OBJ";
+  constexpr std::string_view SRC = "SRC";
   std::filesystem::path pathname = cfg.get_pathname( "storage.root_dir");
   std::string experiment = cfg.get_experiment();
   int pixel_format = cfg.get_int("tiff.pixel_format");
@@ -152,6 +153,11 @@ int main( int argc, char **argv){
       Signal input( lambda, side_length_in_meter, N);
       input.illuminate_thermally( speckle_diameter);
       max_intens_at_source = input.max_intensity();
+    }else if( experiment == SRC){
+      Signal input( lambda, side_length_in_meter, N);
+      int knl_size = input.illuminate_thermally( speckle_diameter);
+      std::cout << "knl_size in pixels = " << knl_size << std::endl;
+      max_intens_at_source = input.max_intensity();
     }else{
       Signal input( lambda, side_length_in_meter, N);
       int knl_size = input.illuminate_thermally( speckle_diameter);
@@ -201,6 +207,15 @@ int main( int argc, char **argv){
       input.picture( pathname / ("reference" + seq( i, frames) + "_8bit.tiff"), intensity_factor * max_intens_at_source, 1.0, pixel_format);
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens_at_source);
+    }
+  }else if( experiment == SRC){
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)")
+    for( i = 0; i < frames; i++){
+      //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
+      Signal input( lambda, side_length_in_meter, N);
+      input.illuminate_thermally( speckle_diameter);
+      input.picture( pathname / ("source" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_source, 1, pixel_format);
     }
   }else if( experiment == NO_OP){
       //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)

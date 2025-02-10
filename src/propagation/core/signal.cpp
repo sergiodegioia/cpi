@@ -79,7 +79,7 @@ int Signal::illuminate_thermally( double coherence_diameter){
   cv::Mat sgl = cv::Mat_< std::complex< double>>( N, N, data);
   std::complex< double> *knl_data = gauss2D.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
-//  cv::filter2D( sgl, sgl, -1, knl);
+  cv::filter2D( sgl, sgl, -1, knl);
   return knl_size;
 }
 
