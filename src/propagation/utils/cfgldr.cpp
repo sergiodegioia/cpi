@@ -60,7 +60,7 @@ std::string ConfigLoader::get_pixel_format(){
 std::string ConfigLoader::get_experiment(){
   try{
     std::string experiment = get( "experiment");
-    if( experiment != "CPI" && experiment != "GI" && experiment != "OBJ" && experiment != "NO_OP"){
+    if( experiment != "CPI" && experiment != "GI" && experiment != "OBJ" && experiment != "SRC" && experiment != "NO_OP"){
       throw ConfigError( "[utils/ConfigLoader] Parameter {experiment} is {" + experiment + "} and hence is neither CPI nor GI, the only legal values.");
     }
     return experiment;
