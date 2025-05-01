@@ -96,14 +96,22 @@ int main( int argc, char **argv){
   // it is convenient to load all parameters at startup in order for 
   // a bad formatted config file to abort execution as soon as possible
   ConfigLoader cfg;
-  std::cout << "loaded parameters: " << std::endl;
-  std::cout << cfg << std::endl;
+  //std::cout << "loaded parameters: " << std::endl;
+  //std::cout << cfg << std::endl;
+  std::filesystem::path root = cfg.get_dirname( "storage.root_dir");
+  std::filesystem::path log_file = cfg.get_filename( "storage.log_file");
+  {
+    std::ofstream( log_file) << "loaded parameters: \n" <<cfg << '\n';
+  }
+  std::filesystem::path dir_armA = cfg.get_dirname( "storage.armA");
+  std::filesystem::path dir_armB = cfg.get_dirname( "storage.armB");
   constexpr std::string_view CPI = "CPI";
   constexpr std::string_view GI = "GI";
   constexpr std::string_view NO_OP = "NO_OP";
   constexpr std::string_view OBJ = "OBJ";
   constexpr std::string_view SRC = "SRC";
-  std::filesystem::path pathname = cfg.get_pathname( "storage.root_dir");
+  constexpr std::string_view SRC2LENS = "SRC2LENS";
+  constexpr std::string_view LENS = "LENS";
   std::string experiment = cfg.get_experiment();
   int pixel_format = cfg.get_int("tiff.pixel_format");
   //std::string pixel_format = cfg.get_pixel_format();
@@ -114,7 +122,9 @@ int main( int argc, char **argv){
   unsigned N = cfg.get_int( "N");
   double side_length_in_meter = cfg.get_double( "side_length_in_meter");
   double lambda = cfg.get_double( "lambda");
-  double speckle_diameter = cfg.get_double( "speckle_diameter");
+  std::string beam_shape = cfg.get_beam_shape();
+  double beam_size = cfg.get_double( "illumination.beam_size");
+  double sigma = cfg.get_double( "illumination.transversal_coherence_length");
   double fA = cfg.get_double( "lens.focal_length");
   double radius = cfg.get_double("lens.aperture_diameter")/2;
   double object_to_lens = cfg.get_double( "common_arm.object_to_lens");
@@ -126,6 +136,7 @@ int main( int argc, char **argv){
   double max_intens_at_source;
   double max_intens_fft;
   double max_intens_at_lens;
+  double max_intens_at_lens_secondBeam;
   double max_intens_at_A;
   double max_intens_at_B;
   {
@@ -134,7 +145,7 @@ int main( int argc, char **argv){
       //ones.quadratic_phase_lag_shift_fourier( 2 * pi / lambda, -lambda*lambda * object_to_lens);
       //ones.toTextFile( "vacuum_transfer_function.txt");
       Signal input( lambda, side_length_in_meter, N);
-      int knl_size = input.illuminate_thermally( speckle_diameter);
+      int knl_size = input.illuminate_thermally( beam_shape, beam_size, sigma);
       std::cout << "knl_size in pixels = " << knl_size << std::endl;
       max_intens_at_source = input.max_intensity();
       //auto fft_input = input.fft();
@@ -145,22 +156,40 @@ int main( int argc, char **argv){
       max_intens_at_lens = input.max_intensity();
       input.mask( radius);
       //Signal secondBeam = input;
-      input.propagate( -lens_to_detectorB);
+      input.propagate( -lens_to_detectorA);
       max_intens_at_A = input.max_intensity();
       //secondBeam.propagate( - lens_to_detectorB);
       //max_intens_at_B = secondBeam.max_intensity();
     }else if( experiment == GI){
       Signal input( lambda, side_length_in_meter, N);
-      input.illuminate_thermally( speckle_diameter);
+      input.illuminate_thermally( beam_shape, beam_size, sigma);
       max_intens_at_source = input.max_intensity();
     }else if( experiment == SRC){
       Signal input( lambda, side_length_in_meter, N);
-      int knl_size = input.illuminate_thermally( speckle_diameter);
+      int knl_size = input.illuminate_thermally( beam_shape, beam_size, sigma);
       std::cout << "knl_size in pixels = " << knl_size << std::endl;
       max_intens_at_source = input.max_intensity();
+    }else if( experiment == SRC2LENS){
+      Signal input( lambda, side_length_in_meter, N);
+      int knl_size = input.illuminate_thermally( beam_shape, beam_size, sigma);
+      std::cout << "knl_size in pixels = " << knl_size << std::endl;
+      max_intens_at_source = input.max_intensity();
+      input.propagate( object_to_lens);
+      //max_intens_at_lens = input.max_intensity();
+      input.mask( radius);
+      Signal secondBeam = input;
+      input.propagate( -lens_to_detectorA);
+      max_intens_at_A = input.max_intensity();
+      secondBeam.propagate( - lens_to_detectorB);
+      max_intens_at_B = secondBeam.max_intensity();
+    }else if( experiment == LENS){
+      Signal input( lambda, side_length_in_meter, N);
+      input.illuminate_uniformly();
+      input.mask( radius);
+      input.picture( root / ("lens.tiff"), 1, 1);
     }else{
       Signal input( lambda, side_length_in_meter, N);
-      int knl_size = input.illuminate_thermally( speckle_diameter);
+      int knl_size = input.illuminate_thermally( beam_shape, beam_size, sigma);
       std::cout << "knl_size in pixels = " << knl_size << std::endl;
       max_intens_at_source = input.max_intensity();
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
@@ -174,66 +203,82 @@ int main( int argc, char **argv){
 
   int i;
   if( experiment == CPI){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
-      input.illuminate_thermally( speckle_diameter);
+      input.illuminate_thermally( beam_shape, beam_size, sigma);
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
-      //input.picture( pathname / ("input" + seq( i, frames) + ".tiff"), 1, side_length_in_meter/fA, pixel_format);
+      //input.picture( root / ("input" + seq( i, frames) + ".tiff"), 1, side_length_in_meter/fA, pixel_format);
       //auto fft_input = input.fft();
-      //input.detect( fft_input, pathname / ("fft" + seq( i, frames) + ".tiff"), std::pow( max_intens_fft, .1), 1, pixel_format);
+      //input.detect( fft_input, root / ("fft" + seq( i, frames) + ".tiff"), std::pow( max_intens_fft, .1), 1, pixel_format);
       input.propagate( object_to_lens);
       input.mask( radius);
-      //input.picture( pathname / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
+      //input.picture( root / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
       Signal secondBeam = input;
-      input.propagate( -lens_to_detectorB);
-      input.picture( pathname / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), pixel_format);
-      secondBeam.propagate( - lens_to_detectorA);
-      secondBeam.picture( pathname / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, 1.5*side_length_in_meter/fA, pixel_format);
-      //secondBeam.picture( pathname / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_B, 1, pixel_format);
+      input.propagate( -lens_to_detectorA);
+      input.picture( root / dir_armA / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), pixel_format);
+      secondBeam.propagate( - lens_to_detectorB);
+      secondBeam.picture( root / dir_armB / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, 1.5*side_length_in_meter/fA, pixel_format);
+      //secondBeam.picture( root / dir_armB / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_B, 1, pixel_format);
       /*
        //END: uncomment for CPI/comment out for GI
       */
     }
   }else if( experiment == GI){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
-      input.illuminate_thermally( speckle_diameter);
-      input.picture( pathname / ("reference" + seq( i, frames) + "_8bit.tiff"), intensity_factor * max_intens_at_source, 1.0, pixel_format);
+      input.illuminate_thermally( beam_shape, beam_size, sigma);
+      input.picture( root / ("reference" + seq( i, frames) + "_8bit.tiff"), intensity_factor * max_intens_at_source, 1.0, pixel_format);
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens_at_source);
     }
   }else if( experiment == SRC){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
-      input.illuminate_thermally( speckle_diameter);
-      input.picture( pathname / ("source" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_source, 1, pixel_format);
+      input.illuminate_thermally( beam_shape, beam_size, sigma);
+      input.picture( root / ("source" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_source, 1, pixel_format);
+    }
+  }else if( experiment == SRC2LENS){
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
+    for( i = 0; i < frames; i++){
+      //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
+      Signal input( lambda, side_length_in_meter, N);
+      input.illuminate_thermally( beam_shape, beam_size, sigma);
+      input.propagate( object_to_lens);
+      input.mask( radius);
+      Signal secondBeam = input;
+      input.propagate( -lens_to_detectorA);
+      input.picture( root / dir_armA / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), pixel_format);
+      secondBeam.propagate( - lens_to_detectorB);
+      secondBeam.picture( root / dir_armB / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_B, 1.5*side_length_in_meter/fA, pixel_format);
     }
   }else if( experiment == NO_OP){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, speckle_diameter, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, pathname, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       Signal input( lambda, side_length_in_meter, N);
-      input.illuminate_thermally( speckle_diameter);
+      input.illuminate_thermally( beam_shape, beam_size, sigma);
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
       Signal second = input;
       input.propagate( object_to_lens);
       second.propagate( -object_to_lens);
-      input.picture( pathname / ("forward" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
-      second.picture( pathname / ("backward" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
+      input.picture( root / dir_armA / ("forward" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
+      second.picture( root / dir_armB / ("backward" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
     }
   }else if( experiment == OBJ){
       Signal input( lambda, side_length_in_meter, N);
       input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
-      input.picture( pathname / ("object.tiff"), 1, 1);
+      input.picture( root / ("object.tiff"), 1, 1);
+  }else if( experiment == LENS){
   }else{
     std::cout << "No operation chosen" << std::endl;
   }

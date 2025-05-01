@@ -61,16 +61,15 @@ void Signal::toString(){
   std::cout << value << std::endl;
 }
 
-int Signal::illuminate_thermally( double coherence_diameter){
+int Signal::illuminate_thermally( std::string beam_shape, double beam_size, double sigma){
   int N = value.cols();
   //Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   Eigen::MatrixXd phase( N, N);
   phase = phase.unaryExpr( [this](double){ return dis( gen);});
   value = Eigen::exp((2i * pi * phase).array());
 
-  double side = 5 * coherence_diameter;
+  double side = 5 * 2 * sigma; 
   int knl_size = (int)std::round( N * side / L);
-  double sigma = coherence_diameter/2;
   double reslim = side/knl_size;
   auto gauss1D = Eigen::exp(Eigen::VectorXd::LinSpaced( knl_size, -side/2 + reslim, side/2).array().square()/(-2*sigma*sigma)).matrix();
   Eigen::MatrixXcd gauss2D = gauss1D * gauss1D.transpose();
@@ -79,14 +78,60 @@ int Signal::illuminate_thermally( double coherence_diameter){
   cv::Mat sgl = cv::Mat_< std::complex< double>>( N, N, data);
   std::complex< double> *knl_data = gauss2D.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
-  cv::filter2D( sgl, sgl, -1, knl);
+  //cv::filter2D( sgl, sgl, -1, knl);
+  /**/
+  // Split real and imaginary parts
+  cv::Mat realPart, imagPart;
+  cv::Mat planes[2];
+  cv::split(sgl, planes);
+  realPart = planes[0];
+  imagPart = planes[1];
+
+  // Ensure kernel is real-valued
+  cv::Mat knl_real;
+  cv::extractChannel(knl, knl_real, 0); 
+
+  // Apply filter to each part separately
+  cv::Mat realFiltered, imagFiltered;
+  cv::filter2D(realPart, realFiltered, -1, knl_real, cv::Point(-1, -1), 0, cv::BORDER_REFLECT);
+  cv::filter2D(imagPart, imagFiltered, -1, knl_real, cv::Point(-1, -1), 0, cv::BORDER_REFLECT);
+
+  // Merge back into a complex matrix
+  cv::Mat mergedPlanes[] = {realFiltered, imagFiltered};
+  cv::merge(mergedPlanes, 2, sgl);
+  /**/
+  if( !std::isinf( beam_size)){
+    if( beam_shape == "GAUSSIAN"){
+      times_a_gaussian( beam_size);
+    }else{ // beam_shape == "FLAT"
+      diskmask_it( beam_size);
+    }
+  }
   return knl_size;
 }
 
-void Signal::illuminate_thermally_flat_knl( double coherence_diameter){
+void Signal::diskmask_it( double radius){
+  int N = value.cols();
+  double reslim = L/N;
+  auto offset = (N&1)? reslim: 0;
+  auto dom_sq = Eigen::VectorXd::LinSpaced( N, -L/2 + reslim, L/2).array().square().matrix();
+  auto ones = Eigen::VectorXd::Constant( N, 1);
+  value.array() *= (((dom_sq * ones.transpose()) + (ones * dom_sq.transpose())).array() < pow( radius,2)).cast<double>();
+}
+
+void Signal::times_a_gaussian( double sigma){
+  int N = value.cols();
+  double reslim = L/N;
+  auto offset = (N&1)? reslim: 0;
+  auto gauss1D = Eigen::exp(Eigen::VectorXd::LinSpaced( N, -L/2 + offset, L/2).array().square()/(-4*sigma*sigma)).matrix();
+  Eigen::MatrixXcd gauss2D = gauss1D * gauss1D.transpose();
+  value.array() *= gauss2D.array();
+}
+
+int Signal::illuminate_thermally_flat_knl( double coherence_diameter){
   int N = value.cols();
   int knl_size = (int)std::round( N * coherence_diameter / L);
-  std::cout << "knl_size in pixels = " << knl_size << std::endl;
+  //std::cout << "knl_size in pixels = " << knl_size << std::endl;
   //Eigen::MatrixXd phase = Eigen::MatrixXd::Random( N, N);
   Eigen::MatrixXd phase( N, N);
   phase = phase.unaryExpr( [this](double){ return dis( gen);});
@@ -100,9 +145,10 @@ void Signal::illuminate_thermally_flat_knl( double coherence_diameter){
   cv::Mat sgl = cv::Mat_< std::complex< double>>( N, N, data);
   std::complex< double> *knl_data = disk.data();
   cv::Mat knl = cv::Mat_<std::complex< double>>( knl_size, knl_size, knl_data);
-  std::cout << "Kernel type: " << matTypeToString( knl.type()) << std::endl;
-  std::cout << "Input type: " << matTypeToString( sgl.type()) << std::endl;
+  //std::cout << "Kernel type: " << matTypeToString( knl.type()) << std::endl;
+  //std::cout << "Input type: " << matTypeToString( sgl.type()) << std::endl;
   cv::filter2D( sgl, sgl, -1, knl);
+  return knl_size;
 }
 
 /*
@@ -308,8 +354,8 @@ void Signal::store( std::filesystem::path filename, Eigen::MatrixXd data_to_stor
   int R = data_to_store.rows();
   int i = static_cast<int>(std::round((R - R*centered_crop_factor)/2));
   int j = static_cast<int>(std::round((C - C*centered_crop_factor)/2));
-  C = C*centered_crop_factor;
-  R = R*centered_crop_factor;
+  C = std::round( C*centered_crop_factor);
+  R = std::round( R*centered_crop_factor);
   auto new_data_to_store = data_to_store.block( i, j, R, C);
   //remap linearly with max intensity to pow( 2, bit_depth)-1
   int maxTiff = 65535;
@@ -332,13 +378,13 @@ void Signal::store( std::filesystem::path filename, Eigen::MatrixXd data_to_stor
   params.push_back( 1);
   if( 8 == bit_depth){
     typeTiff = CV_8UC1;
-    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.cast<uint8_t>();
+    Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.array().floor().cast<uint8_t>();
     uint8_t *data = converted_data.data();
     cv::Mat m( R, C, typeTiff, data);
     cv::imwrite( filename.string(), m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major
   }else if( 16 == bit_depth){
     typeTiff = CV_16UC1;
-    Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.cast<uint16_t>();
+    Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic> converted_data = new_data_to_store.array().floor().cast<uint16_t>();
     uint16_t *data = converted_data.data();
     cv::Mat m( R, C, typeTiff, data);
     cv::imwrite( filename.string(), m.t(), params); // data is in coloum-major order, cv::Mat wants it in row-major

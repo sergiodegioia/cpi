@@ -60,22 +60,43 @@ std::string ConfigLoader::get_pixel_format(){
 std::string ConfigLoader::get_experiment(){
   try{
     std::string experiment = get( "experiment");
-    if( experiment != "CPI" && experiment != "GI" && experiment != "OBJ" && experiment != "SRC" && experiment != "NO_OP"){
+    if( experiment != "CPI" && experiment != "GI" && experiment != "OBJ" && experiment != "SRC" && experiment != "SRC2LENS" && experiment != "LENS" && experiment != "NO_OP"){
       throw ConfigError( "[utils/ConfigLoader] Parameter {experiment} is {" + experiment + "} and hence is neither CPI nor GI, the only legal values.");
     }
     return experiment;
   }catch( ConfigError &cfgerr){
     std::cout << cfgerr.what() << std::endl;
     throw;
-  }catch( std::exception &err){
-    std::cout << "[utils/ConfigLoader] Parameter {experiment} cannot be parsed as a double. Check it in the configuration file for the wrong format and fix it. Previous exception: " << err.what() << std::endl;
+  }
+}
+
+std::string ConfigLoader::get_beam_shape(){
+  try{
+    std::string beam_shape = get( "illumination.beam_shape");
+    if( beam_shape != "FLAT" && beam_shape != "GAUSSIAN"){
+      throw ConfigError( "[utils/ConfigLoader] Parameter {illumination.beam_shape} is {" + beam_shape + "} and hence is neither FLAT nor GAUSSIAN, the only legal values.");
+    }
+    return beam_shape;
+  }catch( ConfigError &cfgerr){
+    std::cout << cfgerr.what() << std::endl;
     throw;
   }
 }
 
 double ConfigLoader::get_double( std::string param){
   try{
-    return std::stod( get( param));
+    std::string value = get(param);
+    
+    // Convert to lowercase for case-insensitive matching
+    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+    
+    // Handle infinity cases
+    if (value == "inf" || value == "+inf" || value == "infinity") {
+        return std::numeric_limits<double>::infinity();
+    } else if (value == "-inf" || value == "-infinity") {
+        return -std::numeric_limits<double>::infinity();
+    }
+    return std::stod( value);
   }catch( ConfigError &cfgerr){
     std::cout << cfgerr.what() << std::endl;
     throw;
@@ -85,10 +106,35 @@ double ConfigLoader::get_double( std::string param){
   }
 }
 
-std::filesystem::path ConfigLoader::get_pathname( std::string param){
+std::filesystem::path ConfigLoader::get_filename( std::string param){
   auto value = get( param);
   try{
     auto path = std::filesystem::path( value);
+    if( path.is_relative()){
+      path = get_dirname("storage.root_dir") / path;
+    }
+    if( std::filesystem::is_directory( path)){
+      throw ConfigError( "[utils/ConfigLoader] Parameter {"  + param +  "} is {" + value + "} which is a directory name, not a file name.");
+    }
+    return path;
+  }catch( std::exception &err){
+    std::cout << err.what() << std::endl;
+    throw;
+  }
+}
+
+std::filesystem::path ConfigLoader::get_dirname( std::string param){
+  auto value = get( param);
+  try{
+    auto path = std::filesystem::path( value);
+    if( path.has_root_directory()){
+      path = std::filesystem::absolute( path);
+    }
+    if( param != "storage.root_dir"){
+      if( path.is_relative()){
+        path = get_dirname("storage.root_dir") / path;
+      }
+    }
     if( get_bool( "storage.overwrite")){
       std::filesystem::create_directory( path);
     }else{
@@ -162,6 +208,10 @@ bool ConfigLoader::loadconfig(){
     std::string key;
     std::getline( is_line, key, '=');
     trim( key);
+    if( key.empty()){
+      std::cout << "[utils/ConfigLoader] While reading config file it was found a line [" << line << "] with no key name. This line has been skipped." << std::endl;
+      continue;
+    }
     if( is_line.eof()){
       std::cout << "[utils/ConfigLoader] While reading config file it was found a line [" << line << "] without an equal sign. This line has been skipped." << std::endl;
       continue;

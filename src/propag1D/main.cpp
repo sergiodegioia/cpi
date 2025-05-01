@@ -100,7 +100,7 @@ int main( int argc, char **argv){
   std::cout << cfg << std::endl;
   constexpr std::string_view CPI = "CPI";
   constexpr std::string_view GI = "GI";
-  std::filesystem::path pathname = cfg.get_pathname( "storage.root_dir");
+  std::filesystem::path pathname = cfg.get_dirname( "storage.root_dir");
   std::string experiment = cfg.get_experiment();
   int pixel_format = cfg.get_int("tiff.pixel_format");
   //std::string pixel_format = cfg.get_pixel_format();
