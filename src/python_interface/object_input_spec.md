@@ -22,8 +22,7 @@ This document specifies the format, type, and semantics of the object input file
 ## Image Dimensions
 
 - **Shape**: Square
-- **Size**: \( N \times N \), where \( N \) is defined by the simulator configuration
-- Example: 512×512, 1264×1264, etc.
+- **Size**: (NxN), where (N) must be the same as that defined in the simulator configuration
 
 ---
 
@@ -86,6 +85,8 @@ def generate_binary_object_mask(shape=(512, 512), type='binary', directory="."):
 if __name__ == "__main__":
     generate_binary_object_mask()
 ```
+
+(Optional) Look also to [this implementation](object_mask.py) and this for a [triple-slit mask](triple_slit_mask.py).
 
 ## Requirements
 

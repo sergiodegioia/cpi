@@ -1,4 +1,4 @@
-# 📘 CPI Simulation Runner – User Guide
+# 📘 cpipy: the CPI Simulation Runner – User Guide
 
 This Python script automates running the `propagation.exe` simulator on a collection of input mask files. It is designed for use in batch simulation workflows, where each input mask defines a separate simulation case.
 
@@ -27,7 +27,7 @@ In the script, specify the path to this directory with:
 cfg.object.root_dir = "/path/to/masks"
 ```
 
-The script will loop through all `.tiff` files in this directory and process each one in turn.
+The script will loop through all `.tiff` files in this directory and process each one in turn. For details on the required format and structure of the .tiff files, see the [object input specification](object_input_spec.md).
 
 ---
 

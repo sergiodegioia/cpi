@@ -74,3 +74,4 @@ if __name__ == "__main__":
     generate_apodized_object_mask()
 ```
 
+(Optional) Look also to [this implementation](apodized_object_mask_spec.md).
