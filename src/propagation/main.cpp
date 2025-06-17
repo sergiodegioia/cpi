@@ -95,7 +95,8 @@ int main( int argc, char **argv){
   QApplication a( argc, argv);
   // it is convenient to load all parameters at startup in order for 
   // a bad formatted config file to abort execution as soon as possible
-  ConfigLoader cfg;
+  std::string config_file = (argc > 1) ? argv[1] : "cpi.cfg";
+  ConfigLoader cfg(config_file);
   //std::cout << "loaded parameters: " << std::endl;
   //std::cout << cfg << std::endl;
   std::filesystem::path root = cfg.get_dirname( "storage.root_dir");
@@ -115,10 +116,6 @@ int main( int argc, char **argv){
   std::string experiment = cfg.get_experiment();
   int pixel_format = cfg.get_int("tiff.pixel_format");
   //std::string pixel_format = cfg.get_pixel_format();
-  int slits = cfg.get_int( "object.slits");
-  int w_ratio = cfg.get_int( "object.w_ratio");
-  int h_ratio = cfg.get_int( "object.h_ratio");
-  double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
   unsigned N = cfg.get_int( "N");
   double side_length_in_meter = cfg.get_double( "side_length_in_meter");
   double lambda = cfg.get_double( "lambda");
@@ -131,6 +128,8 @@ int main( int argc, char **argv){
   double lens_to_detectorA = cfg.get_double( "common_arm.lens_to_detectorA");
   double lens_to_detectorB = cfg.get_double( "common_arm.lens_to_detectorB");
   int frames = cfg.get_int( "frames");
+  double crop_factor = cfg.get_double( "object.image_crop_factor");
+  bool use_external = cfg.get_bool("object.use_external");
 
   double intensity_factor = 2.0;
   double max_intens_at_source;
@@ -151,7 +150,16 @@ int main( int argc, char **argv){
       //auto fft_input = input.fft();
       //max_intens_fft = input.max_intensity( fft_input);
       //std::cout << "fft max intensity = " << max_intens_fft << std::endl;
-      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      if (use_external) {
+           std::filesystem::path object_mask_path = cfg.get_existing_file("object.filename", "object.root_dir");
+          input.object_mask(object_mask_path);
+      } else {
+          int slits = cfg.get_int( "object.slits");
+          int w_ratio = cfg.get_int( "object.w_ratio");
+          int h_ratio = cfg.get_int( "object.h_ratio");
+          double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
+          input.triple_slit_mask(w_ratio, h_ratio, slits, w_offset_ratio);
+      }
       input.propagate( object_to_lens);
       max_intens_at_lens = input.max_intensity();
       input.mask( radius);
@@ -192,7 +200,16 @@ int main( int argc, char **argv){
       int knl_size = input.illuminate_thermally( beam_shape, beam_size, sigma);
       std::cout << "knl_size in pixels = " << knl_size << std::endl;
       max_intens_at_source = input.max_intensity();
-      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      if (use_external) {
+           std::filesystem::path object_mask_path = cfg.get_existing_file("object.filename", "object.root_dir");
+          input.object_mask(object_mask_path);
+      } else {
+          int slits = cfg.get_int( "object.slits");
+          int w_ratio = cfg.get_int( "object.w_ratio");
+          int h_ratio = cfg.get_int( "object.h_ratio");
+          double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
+          input.triple_slit_mask(w_ratio, h_ratio, slits, w_offset_ratio);
+      }
       Signal second = input;
       input.propagate( object_to_lens);
       max_intens_at_lens = input.max_intensity();
@@ -203,13 +220,22 @@ int main( int argc, char **argv){
 
   int i;
   if( experiment == CPI){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, crop_factor, cfg, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, crop_factor, cfg, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
       input.illuminate_thermally( beam_shape, beam_size, sigma);
-      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      if (use_external) {
+           std::filesystem::path object_mask_path = cfg.get_existing_file("object.filename", "object.root_dir");
+          input.object_mask(object_mask_path);
+      } else {
+          int slits = cfg.get_int( "object.slits");
+          int w_ratio = cfg.get_int( "object.w_ratio");
+          int h_ratio = cfg.get_int( "object.h_ratio");
+          double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
+          input.triple_slit_mask(w_ratio, h_ratio, slits, w_offset_ratio);
+      }
       //input.picture( root / ("input" + seq( i, frames) + ".tiff"), 1, side_length_in_meter/fA, pixel_format);
       //auto fft_input = input.fft();
       //input.detect( fft_input, root / ("fft" + seq( i, frames) + ".tiff"), std::pow( max_intens_fft, .1), 1, pixel_format);
@@ -218,7 +244,7 @@ int main( int argc, char **argv){
       //input.picture( root / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, side_length_in_meter/fA, pixel_format);
       Signal secondBeam = input;
       input.propagate( -lens_to_detectorA);
-      input.picture( root / dir_armA / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), pixel_format);
+      input.picture( root / dir_armA / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/crop_factor  + (1.0-1.0/crop_factor )*(std::abs(fA-object_to_lens)/fA), pixel_format);
       secondBeam.propagate( - lens_to_detectorB);
       secondBeam.picture( root / dir_armB / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_lens, 1.5*side_length_in_meter/fA, pixel_format);
       //secondBeam.picture( root / dir_armB / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_B, 1, pixel_format);
@@ -227,19 +253,28 @@ int main( int argc, char **argv){
       */
     }
   }else if( experiment == GI){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, cfg, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, cfg, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
       input.illuminate_thermally( beam_shape, beam_size, sigma);
       input.picture( root / ("reference" + seq( i, frames) + "_8bit.tiff"), intensity_factor * max_intens_at_source, 1.0, pixel_format);
-      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      if (use_external) {
+           std::filesystem::path object_mask_path = cfg.get_existing_file("object.filename", "object.root_dir");
+          input.object_mask(object_mask_path);
+      } else {
+          int slits = cfg.get_int( "object.slits");
+          int w_ratio = cfg.get_int( "object.w_ratio");
+          int h_ratio = cfg.get_int( "object.h_ratio");
+          double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
+          input.triple_slit_mask(w_ratio, h_ratio, slits, w_offset_ratio);
+      }
       input.bucket("bucket" + seq( i, frames) + "_8bit.txt", intensity_factor * max_intens_at_source);
     }
   }else if( experiment == SRC){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, cfg, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_source, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, cfg, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
@@ -247,8 +282,8 @@ int main( int argc, char **argv){
       input.picture( root / ("source" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_source, 1, pixel_format);
     }
   }else if( experiment == SRC2LENS){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, crop_factor, cfg, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, crop_factor, cfg, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       //std::cout << "Thread #" << std::to_string( omp_get_thread_num()) << " is running iteration i=" << std::to_string( i) << std::endl;
       Signal input( lambda, side_length_in_meter, N);
@@ -257,17 +292,26 @@ int main( int argc, char **argv){
       input.mask( radius);
       Signal secondBeam = input;
       input.propagate( -lens_to_detectorA);
-      input.picture( root / dir_armA / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/w_ratio + (1.0-1.0/w_ratio)*(std::abs(fA-object_to_lens)/fA), pixel_format);
+      input.picture( root / dir_armA / ("toDetectorA" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_A, 1.0/crop_factor + (1.0-1.0/crop_factor)*(std::abs(fA-object_to_lens)/fA), pixel_format);
       secondBeam.propagate( - lens_to_detectorB);
       secondBeam.picture( root / dir_armB / ("toDetectorB" + seq( i, frames) + ".tiff"), intensity_factor * max_intens_at_B, 1.5*side_length_in_meter/fA, pixel_format);
     }
   }else if( experiment == NO_OP){
-      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)
-    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, w_ratio, h_ratio, slits, w_offset_ratio, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, std::cout) private( i) schedule( static)")
+      //#pragma omp parallel for default( none) shared( intensity_factor, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, cfg, std::cout) private( i) schedule( static)
+    _Pragma( "omp parallel for default( none) shared( intensity_factor,  max_intens_fft, max_intens_at_source, max_intens_at_lens, max_intens_at_A, max_intens_at_B, lambda, fA, side_length_in_meter, beam_shape, beam_size, sigma, N, object_to_lens, radius, lens_to_detectorA, lens_to_detectorB, frames, root, dir_armA, dir_armB, pixel_format, use_external, cfg, std::cout) private( i) schedule( static)")
     for( i = 0; i < frames; i++){
       Signal input( lambda, side_length_in_meter, N);
       input.illuminate_thermally( beam_shape, beam_size, sigma);
-      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      if (use_external) {
+           std::filesystem::path object_mask_path = cfg.get_existing_file("object.filename", "object.root_dir");
+          input.object_mask(object_mask_path);
+      } else {
+          int slits = cfg.get_int( "object.slits");
+          int w_ratio = cfg.get_int( "object.w_ratio");
+          int h_ratio = cfg.get_int( "object.h_ratio");
+          double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
+          input.triple_slit_mask(w_ratio, h_ratio, slits, w_offset_ratio);
+      }
       Signal second = input;
       input.propagate( object_to_lens);
       second.propagate( -object_to_lens);
@@ -276,7 +320,16 @@ int main( int argc, char **argv){
     }
   }else if( experiment == OBJ){
       Signal input( lambda, side_length_in_meter, N);
-      input.triple_slit_mask( w_ratio, h_ratio, slits, w_offset_ratio);
+      if (use_external) {
+           std::filesystem::path object_mask_path = cfg.get_existing_file("object.filename", "object.root_dir");
+          input.object_mask(object_mask_path);
+      } else {
+          int slits = cfg.get_int( "object.slits");
+          int w_ratio = cfg.get_int( "object.w_ratio");
+          int h_ratio = cfg.get_int( "object.h_ratio");
+          double w_offset_ratio = cfg.get_double( "object.vertical_offset_ratio");
+          input.triple_slit_mask(w_ratio, h_ratio, slits, w_offset_ratio);
+      }
       input.picture( root / ("object.tiff"), 1, 1);
   }else if( experiment == LENS){
   }else{

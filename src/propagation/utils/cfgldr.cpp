@@ -38,7 +38,11 @@ auto operator<<( std::ostream& os, ConfigLoader const &cfg) -> std::ostream&{
 }
 
 ConfigLoader::ConfigLoader(): kv{std::map<std::string, std::string>()}{
-  loadconfig();
+  loadconfig("cpi.cfg");
+}
+
+ConfigLoader::ConfigLoader(const std::string& filename) : kv{} {
+    loadconfig(filename);
 }
 
 std::string ConfigLoader::get_pixel_format(){
@@ -149,6 +153,35 @@ std::filesystem::path ConfigLoader::get_dirname( std::string param){
   }
 }
 
+std::filesystem::path ConfigLoader::get_existing_dirname(const std::string& param) {
+    auto value = get(param);
+    auto path = std::filesystem::path(value);
+    if (path.is_relative()) {
+        path = get_dirname("storage.root_dir") / path;  // Anch'esso relativo alla radice
+    }
+    if (!std::filesystem::exists(path)) {
+        throw ConfigError("[utils/ConfigLoader] Directory {" + path.string() + "} from parameter {" + param + "} does not exist.");
+    }
+    if (!std::filesystem::is_directory(path)) {
+        throw ConfigError("[utils/ConfigLoader] Path {" + path.string() + "} from parameter {" + param + "} is not a directory.");
+    }
+    return path;
+}
+
+std::filesystem::path ConfigLoader::get_existing_file(const std::string& param, const std::string& basedir_param) {
+    std::filesystem::path dir = get_existing_dirname(basedir_param);
+    std::filesystem::path file = get(param);
+    std::filesystem::path full_path = dir / file;
+
+    if (!std::filesystem::exists(full_path)) {
+        throw ConfigError("[utils/ConfigLoader] File {" + full_path.string() + "} from parameter {" + param + "} does not exist.");
+    }
+    if (!std::filesystem::is_regular_file(full_path)) {
+        throw ConfigError("[utils/ConfigLoader] Path {" + full_path.string() + "} is not a regular file.");
+    }
+    return full_path;
+}
+
 bool ConfigLoader::get_bool(std::string param) {
     try {
         std::string value = get( param);
@@ -188,53 +221,98 @@ std::string ConfigLoader::get( std::string param){
   }
 }
 
-bool ConfigLoader::loadconfig(){
-  std::string filename("cpi.cfg");
-  std::ifstream ifs( filename);
-  if( !ifs.is_open()){
-    perror( ("error while opening file " + filename).c_str());
-    return false;
-  }
-  std::string line;
-  while( std::getline( ifs, line)){
-    trim( line);
-    if( line.empty()){
-      continue;
+bool ConfigLoader::loadconfig(const std::string& filename) {
+    std::ifstream ifs(filename);
+    if (!ifs.is_open()) {
+        perror(("error while opening file " + filename).c_str());
+        return false;
     }
-    if( '#' == line[ 0]){
-      continue;
+
+    std::string line;
+    while (std::getline(ifs, line)) {
+        trim(line);
+        if (line.empty() || line[0] == '#') continue;
+
+        std::istringstream is_line(line);
+        std::string key;
+        std::getline(is_line, key, '=');
+        trim(key);
+
+        if (key.empty()) {
+            std::cout << "[utils/ConfigLoader] Skipped line with no key: " << line << '\n';
+            continue;
+        }
+
+        std::string value;
+        std::getline(is_line, value, '#');  // ignore comment after value
+        trim(value);
+
+        if (value.empty()) {
+            std::cout << "[utils/ConfigLoader] Key with no value: " << key << '\n';
+            continue;
+        }
+
+        const auto [it, success] = kv.insert({key, value});
+        if (!success) {
+            std::cout << "[utils/ConfigLoader] Duplicate key: " << key << " ignored.\n";
+        }
     }
-    std::istringstream is_line( line);
-    std::string key;
-    std::getline( is_line, key, '=');
-    trim( key);
-    if( key.empty()){
-      std::cout << "[utils/ConfigLoader] While reading config file it was found a line [" << line << "] with no key name. This line has been skipped." << std::endl;
-      continue;
+
+    if (ifs.bad()) {
+        perror(("error while reading file " + filename).c_str());
+        return false;
     }
-    if( is_line.eof()){
-      std::cout << "[utils/ConfigLoader] While reading config file it was found a line [" << line << "] without an equal sign. This line has been skipped." << std::endl;
-      continue;
-    }
-    std::string value;
-    std::getline( is_line, value, '#');
-    trim( value);
-    if( value.empty()){
-      std::cout << "[utils/ConfigLoader] While reading config file it was found parameter [" << key << "] with no value assigned. This parameter has been skipped." << std::endl;
-      continue;
-    }
-    const auto [it, success] = kv.insert({ key, value});
-    if( !success){
-      std::cout << "[utils/ConfigLoader] While reading config file it was found a duplicate key [" << key << "]. Only the value of the first occurrence of that key has been loaded." << std::endl;
-    }
-  }
-  if( ifs.bad()){
-    perror( ("error while reading file " + filename).c_str());
-    return false;
-  }
-  ifs.close();
-  return true;
+
+    return true;
 }
+
+//bool ConfigLoader::loadconfig(){
+//  std::string filename("cpi.cfg");
+//  std::ifstream ifs( filename);
+//  if( !ifs.is_open()){
+//    perror( ("error while opening file " + filename).c_str());
+//    return false;
+//  }
+//  std::string line;
+//  while( std::getline( ifs, line)){
+//    trim( line);
+//    if( line.empty()){
+//      continue;
+//    }
+//    if( '#' == line[ 0]){
+//      continue;
+//    }
+//    std::istringstream is_line( line);
+//    std::string key;
+//    std::getline( is_line, key, '=');
+//    trim( key);
+//    if( key.empty()){
+//      std::cout << "[utils/ConfigLoader] While reading config file it was found a line [" << line << "] with no key name. This line has been skipped." << std::endl;
+//      continue;
+//    }
+//    if( is_line.eof()){
+//      std::cout << "[utils/ConfigLoader] While reading config file it was found a line [" << line << "] without an equal sign. This line has been skipped." << std::endl;
+//      continue;
+//    }
+//    std::string value;
+//    std::getline( is_line, value, '#');
+//    trim( value);
+//    if( value.empty()){
+//      std::cout << "[utils/ConfigLoader] While reading config file it was found parameter [" << key << "] with no value assigned. This parameter has been skipped." << std::endl;
+//      continue;
+//    }
+//    const auto [it, success] = kv.insert({ key, value});
+//    if( !success){
+//      std::cout << "[utils/ConfigLoader] While reading config file it was found a duplicate key [" << key << "]. Only the value of the first occurrence of that key has been loaded." << std::endl;
+//    }
+//  }
+//  if( ifs.bad()){
+//    perror( ("error while reading file " + filename).c_str());
+//    return false;
+//  }
+//  ifs.close();
+//  return true;
+//}
 
 ConfigError::ConfigError( const std::string& message) throw()
   : ConfigError( message.c_str())

@@ -250,6 +250,80 @@ void Signal::triple_slit_mask( int w_ratio, int h_ratio, int slits, double w_off
   value.block( (N+hnh)/2, 0, (N-hnh)/2, N).setZero();
 }
 
+
+void Signal::object_mask(const std::filesystem::path& mask_file) {
+    cv::Mat mask_cv = cv::imread(mask_file.string(), cv::IMREAD_UNCHANGED);
+    if (mask_cv.empty()) {
+        throw std::runtime_error("[Signal] Failed to read object mask from " + mask_file.string());
+    }
+
+    int rows = mask_cv.rows;
+    int cols = mask_cv.cols;
+    int channels = mask_cv.channels();
+    int type = mask_cv.depth();  // CV_8U, CV_16U, CV_64F, etc.
+
+    if (rows != value.rows() || cols != value.cols()) {
+        throw std::runtime_error("[Signal] Object mask dimensions do not match signal dimensions.");
+    }
+
+    double scale = 1.0;
+    if (type == CV_8U) {
+        scale = 255.0;
+    } else if (type == CV_16U) {
+        scale = 65535.0;
+    } else if (type == CV_64F) {
+        scale = 1.0;
+    } else {
+        throw std::runtime_error("[Signal] Unsupported bit depth in object mask.");
+    }
+
+    if (channels == 1) {
+        if (type == CV_64F) {
+            Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                real(reinterpret_cast<double*>(mask_cv.data), rows, cols);
+            value.array() *= real.array();
+        } else if (type == CV_8U) {
+            Eigen::Map<Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                real(reinterpret_cast<uint8_t*>(mask_cv.data), rows, cols);
+            value.array() *= (real.cast<double>().array() / scale);
+        } else if (type == CV_16U) {
+            Eigen::Map<Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>
+                real(reinterpret_cast<uint16_t*>(mask_cv.data), rows, cols);
+            value.array() *= (real.cast<double>().array() / scale);
+        }
+    } else if (channels == 2) {
+        std::vector<cv::Mat> planes(2);
+        cv::split(mask_cv, planes);
+        Eigen::MatrixXd re(rows, cols), im(rows, cols);
+
+        if (type == CV_64F) {
+            re = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+                reinterpret_cast<double*>(planes[0].data), rows, cols);
+            im = Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+                reinterpret_cast<double*>(planes[1].data), rows, cols);
+        } else if (type == CV_8U) {
+            re = (Eigen::Map<Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+                    reinterpret_cast<uint8_t*>(planes[0].data), rows, cols)
+                  .cast<double>().array() / scale * 2.0 - 1.0).matrix();
+            im = (Eigen::Map<Eigen::Matrix<uint8_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+                    reinterpret_cast<uint8_t*>(planes[1].data), rows, cols)
+                  .cast<double>().array() / scale * 2.0 - 1.0).matrix();
+        } else if (type == CV_16U) {
+            re = (Eigen::Map<Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+                    reinterpret_cast<uint16_t*>(planes[0].data), rows, cols)
+                  .cast<double>().array() / scale * 2.0 - 1.0).matrix();
+            im = (Eigen::Map<Eigen::Matrix<uint16_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(
+                    reinterpret_cast<uint16_t*>(planes[1].data), rows, cols)
+                  .cast<double>().array() / scale * 2.0 - 1.0).matrix();
+        }
+
+        Eigen::MatrixXcd complex_mask = re.array() + 1i * im.array();
+        value.array() *= complex_mask.array();
+    } else {
+        throw std::runtime_error("[Signal] Unsupported number of channels in object mask.");
+    }
+}
+
 Signal::Signal( double lambda, double side_length_in_meter, int N):
   lambda{ lambda}, L{ side_length_in_meter}, gen{ std::random_device{}()}, dis{ 0.0, 1.0}
 {
