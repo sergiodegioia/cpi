@@ -86,11 +86,23 @@ def run_cpi(cfg: CPIConfig, exe_path: Path):
     cfg_text = cfg.to_cfg()
     with tempfile.NamedTemporaryFile(mode='w+', suffix='.cfg', delete=False) as f:
         f.write(cfg_text)
+        f.flush()
+        os.fsync(f.fileno())
         cfg_path = f.name
 
     print(f"[INFO] Lanciando: {exe_path} {cfg_path}")
-    result = subprocess.run([str(exe_path), cfg_path], capture_output=True, text=True)
 
+    env = os.environ.copy()
+    env["PATH"] = r"C:\msys64\ucrt64\bin;" + env["PATH"]
+
+    command = f'"{exe_path}" "{cfg_path}"'
+    result = subprocess.run(
+        command,
+        shell=True,
+        env=env,
+        capture_output=True,
+        text=True
+    )
     print("--- STDOUT ---")
     print(result.stdout)
     print("--- STDERR ---")
